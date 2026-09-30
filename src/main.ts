@@ -6,8 +6,11 @@ import {
   type SecurityAlert,
   type SyncController,
   createVaultFromPlugin,
+  disconnectPlugin,
   enrollPlugin,
+  otherAccountOf,
   pluginDevices,
+  pluginLocalState,
   pluginProtection,
   pluginVaultLimit,
   recoverFromPlugin,
@@ -18,7 +21,7 @@ import {
 import { obsidianFileSystem } from "./fs.js";
 import { type PluginAuth, type PluginLogin, loginConnection, pluginAuth, signInProblem } from "./login.js";
 import { type Ownership, takeOwnership } from "./owner.js";
-import { type PanelFacts, type PluginPhase, type Protection, panelState, statusBarText, statusBarTitle } from "./panel.js";
+import { type PanelFacts, type PluginPhase, type Protection, disconnectConfirmation, panelState, statusBarText, statusBarTitle } from "./panel.js";
 import { type PanelActions, NodraPanelView, VIEW_TYPE_NODRA } from "./panel-view.js";
 import { type PluginSettings, DEFAULT_SETTINGS, apiFetch, loadSettings } from "./settings.js";
 
@@ -87,6 +90,7 @@ export default class NodraPlugin extends Plugin {
     signOut: () => void this.logout(),
     devices: () => void this.devices(),
     recover: () => void this.recoverDialog(),
+    disconnect: () => void this.disconnectDialog(),
   };
 
   override async onload(): Promise<void> {
@@ -236,11 +240,14 @@ export default class NodraPlugin extends Plugin {
     } catch {
       return; // unloaded while waiting for the owner lock
     }
-    const conn = { ...loginConnection(login, this.settings.vaultId), installationId };
+    const conn = { ...loginConnection(login, this.settings.vaultId), installationId, email: login.email };
     let trusted: Awaited<ReturnType<typeof trustedPlugin>>;
     try {
       trusted = await trustedPlugin(conn);
     } catch (e) {
+      // §20.2: another account's connection is never used, nor removed without the user (NOTES question 413).
+      const other = otherAccountOf(e);
+      if (other !== null) return this.setPhase({ kind: "other-account", otherEmail: other.email });
       return this.setPhase({ kind: "unreachable", detail: String(e) });
     }
     void this.checkProtection(conn);
@@ -337,7 +344,7 @@ export default class NodraPlugin extends Plugin {
       return null;
     }
     const installationId = this.ownership?.installationId ?? this.installationId();
-    return { ...loginConnection(login, this.settings.vaultId), installationId };
+    return { ...loginConnection(login, this.settings.vaultId), installationId, email: login.email };
   }
 
   /** §35.4 for this installation. The secrets live only for this call. Throws when it fails. */
@@ -518,6 +525,50 @@ export default class NodraPlugin extends Plugin {
     await this.restart();
   }
 
+  /**
+   * "Disconnect this vault" (NOTES question 413): the confirmation says what goes, what stays, and how
+   * many changes the other account never got; nothing is removed unless the user confirms.
+   */
+  private async disconnectDialog(): Promise<void> {
+    if (this.busy !== null || this.phase.kind !== "other-account") return;
+    const { otherEmail } = this.phase;
+    const installationId = this.ownership?.installationId ?? this.installationId();
+    let unsynced: number;
+    try {
+      unsynced = (await pluginLocalState({ installationId, vaultId: this.settings.vaultId })).unsynced;
+    } catch (e) {
+      this.problem = `The local sync data could not be read: ${String(e)}`;
+      return this.changed();
+    }
+    const c = disconnectConfirmation({ otherEmail, email: this.email ?? "", unsynced });
+    new ConfirmModal(this.app, c.title, c.text, c.action, () => void this.disconnect(installationId)).open();
+  }
+
+  /** After the confirmation: sync stopped, the chosen Nodra vault forgotten, the connection and local sync data removed; then connect. */
+  private async disconnect(installationId: string): Promise<void> {
+    if (this.busy !== null) return;
+    this.busy = "disconnect";
+    this.problem = null;
+    this.changed();
+    try {
+      await this.controller?.stop();
+      this.controller = null;
+      const vaultId = this.settings.vaultId;
+      // The other account's vault is forgotten first: a crash after it leaves the connection, shown again.
+      if (vaultId !== "") await this.chooseVault("", false);
+      await disconnectPlugin({ installationId, vaultId });
+    } catch (e) {
+      this.problem = `Could not disconnect: ${String(e)}`;
+      return;
+    } finally {
+      this.busy = null;
+      this.changed();
+    }
+    new Notice("Nodra: this vault is disconnected. Connect it to your account from the Nodra panel.");
+    this.protection = null;
+    await this.restart();
+  }
+
   /** Stops sync, then ends this installation's session; the enrolled key stays, so signing in again resumes sync. */
   async logout(): Promise<void> {
     await this.controller?.stop();
@@ -654,7 +705,8 @@ class ConfirmModal extends Modal {
   constructor(
     app: App,
     private readonly heading: string,
-    private readonly text: string,
+    /** One paragraph, or several. */
+    private readonly text: string | readonly string[],
     private readonly action: string,
     private readonly confirm: () => void,
   ) {
@@ -664,7 +716,7 @@ class ConfirmModal extends Modal {
   override onOpen(): void {
     const { contentEl } = this;
     this.setTitle(this.heading);
-    contentEl.createEl("p", { text: this.text });
+    for (const text of typeof this.text === "string" ? [this.text] : this.text) contentEl.createEl("p", { text });
     new Setting(contentEl)
       .addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))
       .addButton((b) =>

@@ -19,6 +19,8 @@ export type PluginPhase =
   | { readonly kind: "unreachable"; readonly detail: string }
   | { readonly kind: "login-unreadable"; readonly detail: string }
   | { readonly kind: "not-enrolled" }
+  /** §20.2: this installation holds another account's connection (NOTES question 413); its email when recorded. */
+  | { readonly kind: "other-account"; readonly otherEmail: string | null }
   | { readonly kind: "no-vault" }
   | { readonly kind: "choose-vault"; readonly vaults: readonly string[] }
   | { readonly kind: "syncing"; readonly status: SyncStatus };
@@ -30,7 +32,7 @@ export interface PanelFacts {
   /** §3.6, from the verified root chain; null until known. */
   readonly protection: Protection | null;
   /** A panel action in flight. */
-  readonly busy: "sign-in" | "connect" | null;
+  readonly busy: "sign-in" | "connect" | "disconnect" | null;
   /** Why the last panel action failed, in plain language; null when it did not. */
   readonly problem: string | null;
   /** `navigator.onLine`. */
@@ -54,6 +56,7 @@ export type PanelState =
   | { readonly kind: "connect"; readonly email: string; readonly protection: Protection | null; readonly busy: boolean; readonly problem: string | null; readonly again: boolean }
   | { readonly kind: "choose-vault"; readonly email: string; readonly vaults: readonly string[] }
   | { readonly kind: "no-vault"; readonly email: string }
+  | { readonly kind: "other-account"; readonly email: string; readonly title: string; readonly explanation: string; readonly busy: boolean; readonly problem: string | null }
   | { readonly kind: "connected"; readonly email: string; readonly protection: Protection | null; readonly sync: SyncWord; readonly lastSynced: string | null; readonly note: string | null }
   | { readonly kind: "attention"; readonly email: string | null; readonly protection: Protection | null; readonly title: string; readonly explanation: string; readonly action: PanelAction | null };
 
@@ -113,6 +116,8 @@ export function panelState(f: PanelFacts): PanelState {
       return attention("Sign-in unreadable", `The saved sign-in could not be read: ${sentence(p.detail)}`, SIGN_IN_AGAIN);
     case "not-enrolled":
       return connect(false);
+    case "other-account":
+      return { kind: "other-account", email, ...otherAccountText(p.otherEmail, email), busy: f.busy === "disconnect", problem: f.problem };
     case "no-vault":
       return { kind: "no-vault", email };
     case "choose-vault":
@@ -144,17 +149,44 @@ export function panelState(f: PanelFacts): PanelState {
   }
 }
 
+/** How the other account is named: its email when this installation recorded it, otherwise plainly unknown. */
+const otherName = (otherEmail: string | null) => (otherEmail === null ? "an earlier account" : otherEmail);
+
+/** The panel's words for an installation connected to another account (NOTES question 413). */
+export function otherAccountText(otherEmail: string | null, email: string): { readonly title: string; readonly explanation: string } {
+  return {
+    title: "Connected to another account",
+    explanation: `This vault is connected to another Nodra account (${otherName(otherEmail)}). You are signed in as ${email}. Disconnect this vault to connect it to ${email}, or sign out to sign in with the other account.`,
+  };
+}
+
+/**
+ * The confirmation before "Disconnect this vault": what goes (this device's connection and its local
+ * sync data), what stays (the notes), and, when there are any, the changes the other account never got.
+ */
+export function disconnectConfirmation(o: { readonly otherEmail: string | null; readonly email: string; readonly unsynced: number }): { readonly title: string; readonly text: readonly string[]; readonly action: string } {
+  const other = o.otherEmail ?? "the earlier account";
+  const text = [
+    `This removes this device's connection to ${other}: its key and the local sync data for this vault. Your notes in this Obsidian vault are not touched.`,
+    ...(o.unsynced === 0
+      ? []
+      : [`${o.unsynced} change${o.unsynced === 1 ? " made here was" : "s made here were"} never uploaded to ${other}. ${o.unsynced === 1 ? "It stays" : "They stay"} in your notes on this device and will not reach ${other}.`]),
+    `Then you can connect this vault to ${o.email}: its notes are uploaded to that account. ${o.otherEmail ?? "The earlier account"} still lists this device until you revoke it there.`,
+  ];
+  return { title: "Disconnect this vault?", text, action: "Disconnect" };
+}
+
 const BAR: Record<SyncWord, string> = { synced: "synced", syncing: "syncing", paused: "paused", offline: "offline" };
 
 /** The status bar item's text (clicking it opens the panel). */
 export function statusBarText(s: PanelState): string {
-  const word = s.kind === "loading" ? "starting" : s.kind === "signed-out" ? "signed out" : s.kind === "connected" ? BAR[s.sync] : s.kind === "attention" ? "needs attention" : "not connected";
+  const word = s.kind === "loading" ? "starting" : s.kind === "signed-out" ? "signed out" : s.kind === "connected" ? BAR[s.sync] : s.kind === "attention" || s.kind === "other-account" ? "needs attention" : "not connected";
   return `Nodra: ${word}`;
 }
 
 /** The status bar item's tooltip: the explanation behind the word. */
 export function statusBarTitle(s: PanelState): string {
-  if (s.kind === "attention") return `${s.title}. ${s.explanation}`;
+  if (s.kind === "attention" || s.kind === "other-account") return `${s.title}. ${s.explanation}`;
   if (s.kind === "connected") return [s.note, s.lastSynced === null ? null : `Last synced ${s.lastSynced}`].filter((x) => x !== null).join(" · ") || "Open the Nodra panel";
   return "Open the Nodra panel";
 }

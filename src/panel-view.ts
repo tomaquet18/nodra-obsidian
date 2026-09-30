@@ -23,6 +23,8 @@ export interface PanelActions {
   signOut(): void;
   devices(): void;
   recover(): void;
+  /** "Disconnect this vault" (NOTES question 413): asks for confirmation first, then disconnects. */
+  disconnect(): void;
 }
 
 export interface PanelSource {
@@ -122,6 +124,21 @@ export class NodraPanelView extends ItemView {
           .addButton((b) => b.setButtonText("Sync now").setCta().onClick(() => a.syncNow()))
           .addButton((b) => b.setButtonText(paused ? "Resume" : "Pause").onClick(() => (paused ? a.resume() : a.pause())));
         return this.account(el, s.email, s.protection, true);
+      }
+      case "other-account": {
+        this.status(el, "is-attention", s.title);
+        el.createEl("p", { text: s.explanation });
+        if (s.problem !== null) el.createEl("p", { text: s.problem, cls: ["nodra-panel-problem", "mod-warning"] });
+        new Setting(el).addButton((b) =>
+          b
+            .setButtonText(s.busy ? "Disconnecting…" : "Disconnect this vault")
+            .setWarning()
+            .setDisabled(s.busy)
+            .onClick(() => {
+              if (!s.busy) a.disconnect();
+            }),
+        );
+        return this.account(el, s.email, null, false);
       }
       case "attention": {
         this.status(el, "is-attention", s.title);

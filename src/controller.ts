@@ -6,6 +6,7 @@ import {
   type Device,
   type Client,
   type FileSystem,
+  type LocalSyncState,
   type LockManagerPort,
   type RecoveryPhase,
   type Settings as SyncSettings,
@@ -18,8 +19,10 @@ import {
   accountProtection,
   accountState,
   createVaultFromClient,
+  disconnectInstallation,
   enrollReplica,
   listDevices,
+  localSyncState,
   recoverManagedAccountWithRelogin,
   revokeDevice,
   settleSecurityBundle,
@@ -34,7 +37,8 @@ import { debounce } from "lodash-es";
 // (sync-client `startSyncClient`) leads through `lead()` (never with `steal`: §20.2 plugin); here vault
 // events become debounced wake-ups (§12.2 rule 2 hints, §14).
 
-export type { SecurityAlert, SyncStatus } from "@nodra/sync-client";
+export type { LocalSyncState, OtherAccount, SecurityAlert, SyncStatus } from "@nodra/sync-client";
+export { otherAccountOf } from "@nodra/sync-client";
 
 /** Settings over a frozen access token (tests, and the §35.7 recovery, which swaps its token itself). */
 export type Settings = SyncSettings & { readonly accessToken: string };
@@ -120,9 +124,11 @@ interface Connection {
   readonly fetch: typeof fetch;
   readonly indexedDB?: IDBFactory;
   readonly IDBKeyRange?: typeof IDBKeyRange;
+  /** The login's email: recorded with this installation's account binding, and shown if another account signs in here. */
+  readonly email?: string;
 }
 
-const idbOf = (c: Connection) => (c.indexedDB && c.IDBKeyRange ? { indexedDB: c.indexedDB, IDBKeyRange: c.IDBKeyRange } : {});
+const idbOf = (c: { readonly indexedDB?: IDBFactory | undefined; readonly IDBKeyRange?: typeof IDBKeyRange | undefined }) => (c.indexedDB && c.IDBKeyRange ? { indexedDB: c.indexedDB, IDBKeyRange: c.IDBKeyRange } : {});
 
 function sessionOf(c: Connection): TrustSession {
   if (c.session !== undefined) return c.session;
@@ -155,17 +161,21 @@ export function chooseVault(chosen: string, vaults: AccountState["vaults"]): Vau
  * The plugin's trusted replica (§35.4 done), or null when this installation has not enrolled yet, and
  * the vault decision (`chooseVault`). The session is this installation's own login (§11.3), never
  * another client's. A security bundle this installation sent without an answer is resent first (§35.1).
+ * An installation enrolled with another account: INSTALLATION_OTHER_ACCOUNT, before any request
+ * (`otherAccountOf` reads which one; NOTES question 413).
  */
 export async function trustedPlugin(c: Connection): Promise<{ readonly session: TrustSession; readonly replica: Pick<SyncClientDeps, "auth" | "vaultCrypto" | "planLimits"> | null; readonly vault: VaultChoice }> {
   const session = sessionOf(c);
   const installNs = pluginInstallNs(c.installationId);
+  const identity = await trustedIdentity({ ...session, installNs, ...idbOf(c) });
   await settleSecurityBundle({ ...session, ...idbOf(c), installNs }).catch(() => null);
-  const identity = await trustedIdentity({ installNs, ...idbOf(c) });
   const vault = chooseVault(c.settings.vaultId, c.settings.vaultId !== "" ? [] : (await accountState(session)).vaults);
   return { session, replica: identity === null ? null : trustedReplica(session, identity), vault };
 }
 
-const accountOf = (c: Connection) => ({ ...sessionOf(c), ...idbOf(c), installNs: pluginInstallNs(c.installationId) });
+const emailOf = (c: Connection) => (c.email === undefined || c.email === "" ? {} : { accountEmail: c.email });
+
+const accountOf = (c: Connection) => ({ ...sessionOf(c), ...idbOf(c), ...emailOf(c), installNs: pluginInstallNs(c.installationId) });
 
 /** §35.1: the account's devices from the verified registry, this installation marked. */
 export const pluginDevices = (c: Connection): Promise<readonly Device[]> => listDevices(accountOf(c));
@@ -194,8 +204,28 @@ export const createVaultFromPlugin = (c: Connection & { readonly secrets?: Accou
  * alone (§24.2), a Private one with the secrets the user typed for this call only.
  */
 export async function enrollPlugin(c: Connection & { readonly secrets?: AccountSecrets | undefined; readonly label: string }): Promise<void> {
-  await enrollReplica({ ...sessionOf(c), ...idbOf(c), installNs: pluginInstallNs(c.installationId), type: "PLUGIN_INSTALLATION", label: c.label, ...secretsOf(c) });
+  await enrollReplica({ ...accountOf(c), type: "PLUGIN_INSTALLATION", label: c.label, ...secretsOf(c) });
 }
+
+/** Where this Obsidian vault's local sync state is: its installation, and the Nodra vault it chose ("" when none). */
+interface LocalPlugin {
+  readonly installationId: string;
+  readonly vaultId: string;
+  readonly indexedDB?: IDBFactory;
+  readonly IDBKeyRange?: typeof IDBKeyRange;
+}
+
+const localOf = (c: LocalPlugin) => ({ ...idbOf(c), installNs: pluginInstallNs(c.installationId), knownVaultIds: c.vaultId === "" ? [] : [c.vaultId] });
+
+/** What "Disconnect this vault" would remove, for its confirmation: the vault databases and their unsynced changes. */
+export const pluginLocalState = (c: LocalPlugin): Promise<LocalSyncState> => localSyncState(localOf(c));
+
+/**
+ * "Disconnect this vault", after the user confirmed (NOTES question 413): this installation's
+ * connection (recipient key, pins, pending bundles) and its local sync state go; the notes on disk
+ * stay. Sync must be stopped first. The host then forgets the chosen Nodra vault.
+ */
+export const disconnectPlugin = (c: LocalPlugin): Promise<void> => disconnectInstallation(localOf(c));
 
 /**
  * §35.7 "Modo Managed" from this plugin, trusted or not: the login alone, with a primary authentication

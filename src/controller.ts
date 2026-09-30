@@ -81,6 +81,8 @@ export interface SyncController {
   status(): SyncStatus;
   /** §37: the user acknowledged this security event (the only way one is acknowledged). */
   acknowledgeSecurityEvent(id: number): Promise<void>;
+  /** §20.2 (NOTES question 419): "I removed the other tool, resume": accepts what the pause showed, resumes. */
+  acknowledgeOtherSyncTool(): void;
 }
 
 /** §14 in one place: quiet period, and a maximum dirty window after which a burst fires anyway. */
@@ -94,7 +96,8 @@ export const pluginInstallNs = (installationId: string) => `plugin:${installatio
 export function startSync(d: SyncDeps): SyncController {
   const timing = { ...DEFAULT_TIMING, ...d.timing };
   const { fs, installationId, ...rest } = d;
-  const c = startSyncClient({ ...rest, timing, installNs: pluginInstallNs(installationId), fs: () => fs });
+  // §20.2 at run time: the plugin is the one host whose folder another tool can sync (NOTES question 419).
+  const c = startSyncClient({ ...rest, timing, installNs: pluginInstallNs(installationId), fs: () => fs, detectOtherSyncTools: true });
   const debounced = hintDebouncer(() => c.wake(), timing);
   return {
     hint: () => debounced(),
@@ -113,6 +116,7 @@ export function startSync(d: SyncDeps): SyncController {
     },
     status: () => c.status(),
     acknowledgeSecurityEvent: (id) => c.acknowledgeSecurityEvent(id),
+    acknowledgeOtherSyncTool: () => c.acknowledgeOtherSyncTool(),
   };
 }
 

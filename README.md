@@ -63,6 +63,15 @@ you where to do it yourself). Your confirmation is remembered on this device for
 vault folder; the plugin asks again if it finds a new sign, and forgets a confirmation once its sign is
 gone.
 
+While syncing, the plugin also notices another tool at work even without a known sign: if a change made
+on another device is already in this vault folder before Nodra brings it (a note with exactly that
+content, or files moved exactly the way the other device moved them, three times in a row), sync pauses
+and sends nothing. The panel shows **Another tool seems to be syncing this folder** with the notes
+concerned. Turn off the other tool for this folder, then select **I removed the other tool, resume**:
+those changes are taken as they are, and the check goes on watching. Until you do, the pause stays, also
+after restarting Obsidian. A note emptied on both sides never counts, and Nodra's own writes never do,
+even after a crash in the middle of one.
+
 ## End-to-end encryption
 
 Each vault is encrypted with keys that only your trusted devices hold. When you enroll this vault, the

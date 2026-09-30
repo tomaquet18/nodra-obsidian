@@ -29,6 +29,8 @@ export interface PanelActions {
   confirmNoOtherSync(): void;
   /** NOTES question 128: turns off the core Sync plugin for this vault, only on this click. */
   turnOffObsidianSync(): void;
+  /** §20.2 at run time (NOTES question 419): "I removed the other tool, resume". */
+  resumeAfterOtherTool(): void;
 }
 
 export interface PanelSource {
@@ -170,6 +172,7 @@ export class NodraPanelView extends ItemView {
     const a = this.source.actions;
     if (id === "sync-now") a.syncNow();
     else if (id === "restart") a.restart();
+    else if (id === "resume-other-tool") a.resumeAfterOtherTool();
     else a.signInAgain();
   }
 

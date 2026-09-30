@@ -103,6 +103,7 @@ export default class NodraPlugin extends Plugin {
     disconnect: () => void this.disconnectDialog(),
     confirmNoOtherSync: () => this.confirmNoOtherSyncDialog(),
     turnOffObsidianSync: () => void this.turnOffObsidianSync(),
+    resumeAfterOtherTool: () => this.controller?.acknowledgeOtherSyncTool(),
   };
 
   override async onload(): Promise<void> {

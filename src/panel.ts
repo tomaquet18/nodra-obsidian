@@ -45,7 +45,7 @@ export interface PanelFacts {
   readonly now: number;
 }
 
-export type PanelActionId = "sign-in-again" | "sync-now" | "restart";
+export type PanelActionId = "sign-in-again" | "sync-now" | "restart" | "resume-other-tool";
 export interface PanelAction {
   readonly id: PanelActionId;
   readonly label: string;
@@ -153,6 +153,7 @@ export function panelState(f: PanelFacts): PanelState {
 
   function fromStatus(s: SyncStatus): PanelState {
     if (s.reenroll === true) return connect(true);
+    if (s.code === "OTHER_SYNC_TOOL" && s.kind === "error") return attention(RUNTIME_OTHER_SYNC_TITLE, runtimeOtherSyncExplanation(s), RESUME_OTHER_TOOL);
     const known = s.code === undefined ? undefined : ATTENTION[s.code];
     if (known !== undefined && (s.kind === "idle" || s.kind === "error")) return attention(known.title, known.explanation, known.action);
     if (s.kind === "error" && s.retrying !== true) return attention("Sync stopped", sentence(s.detail ?? "an unknown error"), TRY_AGAIN);
@@ -176,6 +177,19 @@ export function panelState(f: PanelFacts): PanelState {
 
 const OTHER_SYNC_EXPLANATION =
   "Nodra has to be the only tool syncing this vault folder: if another tool copies the same files, Nodra takes its copies for your edits, which creates duplicates and conflicts. Sync does not start until you remove it and try again, or confirm that this folder is not synced another way.";
+
+/** §20.2 at run time (NOTES question 419): sync stopped because another tool seems to sync the folder. */
+const RUNTIME_OTHER_SYNC_TITLE = "Another tool seems to be syncing this folder";
+const RESUME_OTHER_TOOL: PanelAction = { id: "resume-other-tool", label: "I removed the other tool, resume" };
+
+function runtimeOtherSyncExplanation(s: SyncStatus): string {
+  const paths = s.otherSyncTool?.arrivals.map((a) => a.path) ?? [];
+  const found =
+    paths.length > 0
+      ? `Changes made on another device reached ${listed(paths)} before Nodra brought them, so something else is copying this folder.`
+      : "Files here were moved the way another device moved them before Nodra did it, several times in a row, so something else is copying this folder.";
+  return `${found} Nodra paused sync and sends nothing until you act. Turn off the other tool for this folder (Obsidian Sync, iCloud, Dropbox, OneDrive, Syncthing, automatic Git), then resume: those changes are taken as they are.`;
+}
 
 /** NOTES question 128: Obsidian's internal API to turn Sync off is missing, so the user does it. */
 export const OTHER_SYNC_MANUAL_STEPS = "Obsidian Sync could not be turned off from here. Open Settings → Core plugins, turn off Sync, then select Try again.";

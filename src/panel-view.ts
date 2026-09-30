@@ -206,6 +206,8 @@ export class NodraPanelView extends ItemView {
         .setDisabled(busy)
         .onClick(submit),
     );
+    // The login password is reset in Nodra Web (the email's link returns there); the plugin sends nothing.
+    el.createEl("p", { cls: "nodra-panel-muted" }).createEl("a", { text: "Forgot your password?", href: WEB_URL });
     const create = el.createEl("p", { text: "No account? ", cls: "nodra-panel-muted" });
     create.createEl("a", { text: "Create one", href: WEB_URL });
     create.appendText(" in Nodra Web: this plugin does not create accounts.");

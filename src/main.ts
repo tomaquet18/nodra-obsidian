@@ -20,8 +20,9 @@ import {
 } from "./controller.js";
 import { obsidianFileSystem } from "./fs.js";
 import { type PluginAuth, type PluginLogin, loginConnection, pluginAuth, signInProblem } from "./login.js";
+import { detectOtherSyncTools, keptConfirmations, observeSyncTools, parseConfirmations, type SyncSignal, unconfirmedSignals } from "./other-sync.js";
 import { type Ownership, takeOwnership } from "./owner.js";
-import { type PanelFacts, type PluginPhase, type Protection, disconnectConfirmation, panelState, statusBarText, statusBarTitle } from "./panel.js";
+import { type PanelFacts, type PluginPhase, type Protection, OTHER_SYNC_MANUAL_STEPS, disconnectConfirmation, otherSyncConfirmation, panelState, statusBarText, statusBarTitle } from "./panel.js";
 import { type PanelActions, NodraPanelView, VIEW_TYPE_NODRA } from "./panel-view.js";
 import { type PluginSettings, DEFAULT_SETTINGS, apiFetch, loadSettings } from "./settings.js";
 
@@ -40,9 +41,18 @@ import { type PluginSettings, DEFAULT_SETTINGS, apiFetch, loadSettings } from ".
 const INSTALLATION_KEY = "nodra-installation-id";
 /** Set once the panel has been offered on this vault and device (the first run opens it, once). */
 const FIRST_RUN_KEY = "nodra-panel-offered";
+/** §20.2: the other-sync-tool signals the user confirmed on this vault and device (NOTES question 416). */
+const OTHER_SYNC_CONFIRMED_KEY = "nodra-other-sync-confirmed";
 const SIGN_IN_FIRST = "Nodra: sign in first, from the Nodra panel.";
 
 type NodeFs = { promises: { rename(from: string, to: string): Promise<void> } };
+
+/** Obsidian's internal core plugin "Sync" (not in obsidian.d.ts; NOTES question 416). Null when the app does not expose it. */
+function coreSyncPlugin(app: App): { enabled: boolean; disable(userInitiated: boolean): unknown } | null {
+  const sync = (app as { internalPlugins?: { plugins?: Record<string, unknown> } }).internalPlugins?.plugins?.["sync"] as { enabled?: unknown; disable?: unknown } | undefined;
+  if (sync === undefined || typeof sync.enabled !== "boolean" || typeof sync.disable !== "function") return null;
+  return sync as { enabled: boolean; disable(userInitiated: boolean): unknown };
+}
 
 /**
  * Node's fs.rename on the files behind the vault (desktop only, manifest isDesktopOnly): it replaces an
@@ -91,6 +101,8 @@ export default class NodraPlugin extends Plugin {
     devices: () => void this.devices(),
     recover: () => void this.recoverDialog(),
     disconnect: () => void this.disconnectDialog(),
+    confirmNoOtherSync: () => this.confirmNoOtherSyncDialog(),
+    turnOffObsidianSync: () => void this.turnOffObsidianSync(),
   };
 
   override async onload(): Promise<void> {
@@ -259,6 +271,9 @@ export default class NodraPlugin extends Plugin {
       return void this.openPanel();
     }
     if (choice.remember) await this.chooseVault(choice.vaultId, false);
+    // §20.2: another sync tool on this folder holds sync until the user removes it or confirms (NOTES question 416).
+    const held = await this.otherSyncTools();
+    if (held.length > 0) return this.setPhase({ kind: "other-sync-tool", signals: held });
     const sync = loginConnection(login, choice.vaultId);
     let offered = false;
     this.controller = startSync({
@@ -293,6 +308,54 @@ export default class NodraPlugin extends Plugin {
       onSecurityAlert: (alert) => this.securityAlert(alert),
     });
     this.setPhase({ kind: "syncing", status: this.controller.status() });
+  }
+
+  /**
+   * §20.2, at every start: the known signals of another sync tool on this folder, minus those the user
+   * confirmed on this device. A confirmation whose signal is gone is dropped, so it asks again if it returns.
+   */
+  private async otherSyncTools(): Promise<SyncSignal[]> {
+    const { adapter, configDir } = this.app.vault;
+    const facts = await observeSyncTools({
+      adapter,
+      configDir,
+      basePath: adapter instanceof FileSystemAdapter ? adapter.getBasePath() : null,
+      coreSyncEnabled: coreSyncPlugin(this.app)?.enabled ?? null,
+    });
+    const detected = detectOtherSyncTools(facts);
+    const confirmed = parseConfirmations(this.app.loadLocalStorage(OTHER_SYNC_CONFIRMED_KEY));
+    const kept = keptConfirmations(detected, confirmed);
+    if (kept.join() !== confirmed.join()) this.app.saveLocalStorage(OTHER_SYNC_CONFIRMED_KEY, kept);
+    return unconfirmedSignals(detected, kept);
+  }
+
+  /** §20.2: the explicit confirmation, for exactly the signals shown; then sync starts. */
+  private confirmNoOtherSyncDialog(): void {
+    if (this.phase.kind !== "other-sync-tool") return;
+    const { signals } = this.phase;
+    const c = otherSyncConfirmation(signals);
+    new ConfirmModal(this.app, c.title, c.text, c.action, () => {
+      const confirmed = parseConfirmations(this.app.loadLocalStorage(OTHER_SYNC_CONFIRMED_KEY));
+      this.app.saveLocalStorage(OTHER_SYNC_CONFIRMED_KEY, [...new Set([...confirmed, ...signals.map((s) => s.id)])].sort());
+      void this.restart();
+    }).open();
+  }
+
+  /** NOTES question 128: the core Sync plugin off for this vault, only on the user's click; its manual steps when the app does not expose it. */
+  private async turnOffObsidianSync(): Promise<void> {
+    const sync = coreSyncPlugin(this.app);
+    if (sync === null) {
+      this.problem = OTHER_SYNC_MANUAL_STEPS;
+      return this.changed();
+    }
+    try {
+      await sync.disable(true);
+    } catch {
+      this.problem = OTHER_SYNC_MANUAL_STEPS;
+      return this.changed();
+    }
+    new Notice("Nodra: Obsidian Sync is off for this vault.");
+    await this.restart();
   }
 
   /** §3.6, once per login: Managed connects with the login alone, Private asks for the two secrets. */

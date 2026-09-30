@@ -25,6 +25,10 @@ export interface PanelActions {
   recover(): void;
   /** "Disconnect this vault" (NOTES question 413): asks for confirmation first, then disconnects. */
   disconnect(): void;
+  /** §20.2: the explicit confirmation that no other tool syncs this folder; asks first (NOTES question 416). */
+  confirmNoOtherSync(): void;
+  /** NOTES question 128: turns off the core Sync plugin for this vault, only on this click. */
+  turnOffObsidianSync(): void;
 }
 
 export interface PanelSource {
@@ -139,6 +143,17 @@ export class NodraPanelView extends ItemView {
             }),
         );
         return this.account(el, s.email, null, false);
+      }
+      case "other-sync-tool": {
+        this.status(el, "is-attention", s.title);
+        el.createEl("p", { text: s.explanation });
+        const list = el.createEl("ul");
+        for (const signal of s.signals) list.createEl("li", { text: `${signal.tool}: ${signal.evidence}` });
+        if (s.problem !== null) el.createEl("p", { text: s.problem, cls: ["nodra-panel-problem", "mod-warning"] });
+        if (s.obsidianSync) new Setting(el).addButton((b) => b.setButtonText("Turn off Obsidian Sync for this vault").setCta().onClick(() => a.turnOffObsidianSync()));
+        new Setting(el).addButton((b) => b.setButtonText("Try again").onClick(() => a.restart()));
+        new Setting(el).addButton((b) => b.setButtonText("This folder is not synced another way").setWarning().onClick(() => a.confirmNoOtherSync()));
+        return this.account(el, s.email, s.protection, false);
       }
       case "attention": {
         this.status(el, "is-attention", s.title);

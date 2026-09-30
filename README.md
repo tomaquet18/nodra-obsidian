@@ -41,6 +41,28 @@ Every file of the vault is synced, attachments included. Hidden files and the `.
 not. Concurrent edits of one note are merged when they do not overlap; otherwise a conflict copy
 appears next to the note, and your file never gets conflict markers.
 
+## Nodra must be the only sync on the vault folder
+
+Do not sync the same vault folder with Nodra and another tool (Obsidian Sync, iCloud Drive, Dropbox,
+OneDrive, Syncthing, a Git plugin that commits on its own…): Nodra would take the other tool's copies for
+your edits and create duplicates and conflicts. To use a vault on several devices, install Nodra on each
+one.
+
+Every time sync starts, the plugin looks for known signs of another tool, locally and without sending
+anything:
+
+- Obsidian's core **Sync** plugin turned on in this vault;
+- a `.stfolder` (Syncthing) or `.dropbox` marker in the vault folder;
+- a `.git` folder with the **Obsidian Git** plugin enabled and set to commit, push or pull automatically;
+- the vault folder inside iCloud Drive (`Mobile Documents`), a `Dropbox` folder or a `OneDrive` folder.
+
+If it finds one, sync does not start and the panel says what it found. Remove it and select **Try
+again**, or select **This folder is not synced another way** and confirm. For Obsidian Sync the panel
+also offers **Turn off Obsidian Sync for this vault**, which turns it off only when you select it (or tells
+you where to do it yourself). Your confirmation is remembered on this device for this vault, outside the
+vault folder; the plugin asks again if it finds a new sign, and forgets a confirmation once its sign is
+gone.
+
 ## End-to-end encryption
 
 Each vault is encrypted with keys that only your trusted devices hold. When you enroll this vault, the

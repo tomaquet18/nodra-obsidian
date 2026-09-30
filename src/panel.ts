@@ -1,4 +1,5 @@
 import type { SyncStatus } from "./controller.js";
+import type { SyncSignal } from "./other-sync.js";
 
 // The Nodra panel's decisions, free of the `obsidian` runtime: from the plugin's facts (where it is,
 // the login, the account's protection, the controller's status) to the one screen the panel shows, and
@@ -22,6 +23,8 @@ export type PluginPhase =
   /** §20.2: this installation holds another account's connection (NOTES question 413); its email when recorded. */
   | { readonly kind: "other-account"; readonly otherEmail: string | null }
   | { readonly kind: "no-vault" }
+  /** §20.2: another sync tool's signals the user has not confirmed (NOTES question 416); sync does not start. */
+  | { readonly kind: "other-sync-tool"; readonly signals: readonly SyncSignal[] }
   | { readonly kind: "choose-vault"; readonly vaults: readonly string[] }
   | { readonly kind: "syncing"; readonly status: SyncStatus };
 
@@ -57,6 +60,17 @@ export type PanelState =
   | { readonly kind: "choose-vault"; readonly email: string; readonly vaults: readonly string[] }
   | { readonly kind: "no-vault"; readonly email: string }
   | { readonly kind: "other-account"; readonly email: string; readonly title: string; readonly explanation: string; readonly busy: boolean; readonly problem: string | null }
+  | {
+      readonly kind: "other-sync-tool";
+      readonly email: string;
+      readonly protection: Protection | null;
+      readonly title: string;
+      readonly explanation: string;
+      readonly signals: readonly { readonly tool: string; readonly evidence: string }[];
+      /** Offer "Turn off Obsidian Sync for this vault" (NOTES question 128). */
+      readonly obsidianSync: boolean;
+      readonly problem: string | null;
+    }
   | { readonly kind: "connected"; readonly email: string; readonly protection: Protection | null; readonly sync: SyncWord; readonly lastSynced: string | null; readonly note: string | null }
   | { readonly kind: "attention"; readonly email: string | null; readonly protection: Protection | null; readonly title: string; readonly explanation: string; readonly action: PanelAction | null };
 
@@ -122,6 +136,17 @@ export function panelState(f: PanelFacts): PanelState {
       return { kind: "no-vault", email };
     case "choose-vault":
       return { kind: "choose-vault", email, vaults: p.vaults };
+    case "other-sync-tool":
+      return {
+        kind: "other-sync-tool",
+        email,
+        protection: f.protection,
+        title: "Another sync tool found",
+        explanation: OTHER_SYNC_EXPLANATION,
+        signals: p.signals.map(({ tool, evidence }) => ({ tool, evidence })),
+        obsidianSync: p.signals.some((s) => s.id === "obsidian-sync"),
+        problem: f.problem,
+      };
     case "syncing":
       return fromStatus(p.status);
   }
@@ -147,6 +172,28 @@ export function panelState(f: PanelFacts): PanelState {
     if (s.code !== undefined) return connected("syncing", s.detail ?? null);
     return connected("synced", s.detail ?? null);
   }
+}
+
+const OTHER_SYNC_EXPLANATION =
+  "Nodra has to be the only tool syncing this vault folder: if another tool copies the same files, Nodra takes its copies for your edits, which creates duplicates and conflicts. Sync does not start until you remove it and try again, or confirm that this folder is not synced another way.";
+
+/** NOTES question 128: Obsidian's internal API to turn Sync off is missing, so the user does it. */
+export const OTHER_SYNC_MANUAL_STEPS = "Obsidian Sync could not be turned off from here. Open Settings → Core plugins, turn off Sync, then select Try again.";
+
+/** "Tool A", "Tool A and Tool B", "Tool A, Tool B and Tool C". */
+const listed = (names: readonly string[]) => (names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+
+/** The explicit confirmation (§20.2) that no other tool syncs this folder: every tool found, by name. */
+export function otherSyncConfirmation(signals: readonly SyncSignal[]): { readonly title: string; readonly text: readonly string[]; readonly action: string } {
+  const tools = [...new Set(signals.map((s) => s.tool))];
+  return {
+    title: "Sync this folder with Nodra only?",
+    text: [
+      `Confirm only if ${listed(tools)} ${tools.length === 1 ? "does" : "do"} not sync this vault folder. If ${tools.length === 1 ? "it" : "one of them"} does, notes can be duplicated or end up in conflict copies.`,
+      "Nodra remembers this on this device and asks again if it finds another sync tool.",
+    ],
+    action: "It is not synced another way",
+  };
 }
 
 /** How the other account is named: its email when this installation recorded it, otherwise plainly unknown. */
@@ -180,13 +227,13 @@ const BAR: Record<SyncWord, string> = { synced: "synced", syncing: "syncing", pa
 
 /** The status bar item's text (clicking it opens the panel). */
 export function statusBarText(s: PanelState): string {
-  const word = s.kind === "loading" ? "starting" : s.kind === "signed-out" ? "signed out" : s.kind === "connected" ? BAR[s.sync] : s.kind === "attention" || s.kind === "other-account" ? "needs attention" : "not connected";
+  const word = s.kind === "loading" ? "starting" : s.kind === "signed-out" ? "signed out" : s.kind === "connected" ? BAR[s.sync] : s.kind === "attention" || s.kind === "other-account" || s.kind === "other-sync-tool" ? "needs attention" : "not connected";
   return `Nodra: ${word}`;
 }
 
 /** The status bar item's tooltip: the explanation behind the word. */
 export function statusBarTitle(s: PanelState): string {
-  if (s.kind === "attention" || s.kind === "other-account") return `${s.title}. ${s.explanation}`;
+  if (s.kind === "attention" || s.kind === "other-account" || s.kind === "other-sync-tool") return `${s.title}. ${s.explanation}`;
   if (s.kind === "connected") return [s.note, s.lastSynced === null ? null : `Last synced ${s.lastSynced}`].filter((x) => x !== null).join(" · ") || "Open the Nodra panel";
   return "Open the Nodra panel";
 }

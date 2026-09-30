@@ -14,17 +14,28 @@ ciphertext only, never your note text or file names.
 
 ## Getting started
 
-1. Create your account at [app.nodranotes.com](https://app.nodranotes.com).
-2. Install and enable the plugin (Settings → Community plugins).
-3. Run **Nodra: Sign in** from the command palette with your Nodra email and password.
-4. Run **Nodra: Enroll this vault** once. On a Managed account your sign-in is enough; on a Private
-   account, type your Encryption Password and the Account Secret Key from your Setup Kit (used for
-   this one step and never stored).
+Everything is done from the **Nodra panel** in the right sidebar; no command is needed.
 
-Sync then runs in the background. The status bar shows `Nodra: idle`, `syncing`, `paused` or `error`;
-hover it for details. Other commands: **Sync now**, **Pause or resume sync**, **Manage devices**,
-**Create a new Nodra vault**, **Recover the account** (Managed accounts) and **Sign out**. Signing out
-stops sync; signing in again resumes it without enrolling again.
+1. Create your account at [app.nodranotes.com](https://app.nodranotes.com).
+2. Install and enable the plugin (Settings → Community plugins). The Nodra panel opens by itself the
+   first time. Later, open it with the **Nodra** button in the left ribbon or by clicking the Nodra
+   item in the status bar.
+3. **Sign in** in the panel with your Nodra email and password (not your Encryption Password).
+4. Click **Connect this vault**. On a Managed account your sign-in is enough; on a Private account the
+   panel asks for your Encryption Password and the Account Secret Key from your Setup Kit, used for this
+   one step and never stored. If your account has several Nodra vaults, the panel asks which one this
+   Obsidian vault syncs to (chosen once).
+
+Sync then runs in the background. The panel shows **Synced**, **Syncing…**, **Paused**, **Offline** or
+**Needs attention**, and when it last synced, with **Sync now** and **Pause** / **Resume**. When something
+needs you (storage full, signed out, the vault's access revoked…), the panel says what happened in plain
+words and offers the one action that fixes it. Its account section shows your email and whether the
+account is Managed or Private, and has **Manage devices** (list and revoke), **Create vault** (for another
+Obsidian vault), **Can't unlock your account?** (recovery, Managed accounts) and **Sign out**. Signing out
+stops sync; signing in again resumes it without connecting again.
+
+The commands (**Open the Nodra panel**, **Sync now**, **Pause or resume sync**, **Manage devices**, **Create
+a new Nodra vault**, **Recover the account**, **Sign out**…) are shortcuts for the same actions.
 
 Every file of the vault is synced, attachments included. Hidden files and the `.obsidian` folder are
 not. Concurrent edits of one note are merged when they do not overlap; otherwise a conflict copy
@@ -91,8 +102,8 @@ The build refuses to run when any is missing, not https, not a bare origin, or w
 key. The development build needs nothing and talks to `http://127.0.0.1:8787`.
 
 Releases: `pnpm --filter @nodra/obsidian-plugin run version <x.y.z>` bumps `manifest.json`,
-`versions.json` and `package.json` together; attach `main.js` and `manifest.json` to a GitHub release
-named after the version.
+`versions.json` and `package.json` together; attach `main.js`, `manifest.json` and `styles.css` to a
+GitHub release named after the version.
 
 ## Development
 
@@ -103,5 +114,6 @@ pnpm --filter @nodra/obsidian-plugin typecheck
 
 `src/fs.ts` is the file-system port over `DataAdapter`; `src/controller.ts` wires sync without the
 `obsidian` runtime so it runs in tests; `src/login.ts` and `src/auth-storage.ts` are the sign-in and
-where its session is kept; `src/main.ts` is the Obsidian UI. Assumptions about Obsidian that the tests
+where its session is kept; `src/panel.ts` decides what the Nodra panel shows (pure), `src/panel-view.ts`
+renders it and `styles.css` styles it; `src/main.ts` wires the plugin to Obsidian. Assumptions about Obsidian that the tests
 cannot verify are listed in `NOTES.md`.

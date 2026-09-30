@@ -1,0 +1,49 @@
+/* The Nodra panel (src/panel-view.ts). Obsidian's CSS variables only, so it follows every theme. */
+
+.nodra-panel {
+  padding: var(--size-4-3);
+}
+
+.nodra-panel-status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-2);
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+}
+
+.nodra-panel-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--text-faint);
+}
+
+.nodra-panel-dot.is-synced {
+  background-color: var(--color-green);
+}
+
+.nodra-panel-dot.is-syncing {
+  background-color: var(--color-blue);
+}
+
+.nodra-panel-dot.is-paused,
+.nodra-panel-dot.is-offline {
+  background-color: var(--text-faint);
+}
+
+.nodra-panel-dot.is-attention {
+  background-color: var(--color-orange);
+}
+
+.nodra-panel-muted {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.nodra-panel-problem {
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+}

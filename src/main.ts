@@ -5,7 +5,6 @@ import { type SecretStore, pluginAuthStorage } from "./auth-storage.js";
 import {
   type SecurityAlert,
   type SyncController,
-  type SyncStatus,
   createVaultFromPlugin,
   enrollPlugin,
   pluginDevices,
@@ -19,22 +18,26 @@ import {
 import { obsidianFileSystem } from "./fs.js";
 import { type PluginAuth, type PluginLogin, loginConnection, pluginAuth, signInProblem } from "./login.js";
 import { type Ownership, takeOwnership } from "./owner.js";
+import { type PanelFacts, type PluginPhase, type Protection, panelState, statusBarText, statusBarTitle } from "./panel.js";
+import { type PanelActions, NodraPanelView, VIEW_TYPE_NODRA } from "./panel-view.js";
 import { type PluginSettings, DEFAULT_SETTINGS, apiFetch, loadSettings } from "./settings.js";
 
 // The Nodra Obsidian plugin (§42): the sync client over the vault's DataAdapter, on the real §31 crypto,
-// against the API and Supabase project fixed at build (globals.d.ts). Each vault signs in with its own
-// Supabase Auth session (login.ts, §11.3), kept outside the vault (auth-storage.ts), then enrolls once
-// (§35.4): a Managed account (ADR-021, the default) with the login alone (§24.2); a Private one with the
-// account's two secrets, typed into a dialog and never stored. Its recipient key stays non-extractable
-// in IndexedDB (§20.1). The account itself is created in Nodra Web (§35.2). From a trusted plugin: the
+// against the API and Supabase project fixed at build (globals.d.ts). Everything is done from the Nodra
+// panel in the right sidebar (panel-view.ts; its decisions in panel.ts), opened by the ribbon button or
+// the status bar; the commands are shortcuts. Each vault signs in with its own Supabase Auth session
+// (login.ts, §11.3), kept outside the vault (auth-storage.ts), then connects (enrolls) once (§35.4): a
+// Managed account (ADR-021, the default) with the login alone (§24.2); a Private one with the account's
+// two secrets, typed into the panel and never stored. Its recipient key stays non-extractable in
+// IndexedDB (§20.1). The account itself is created in Nodra Web (§35.2). From a trusted plugin: the
 // device list and revocation (§35.5), a new vault (§35.10), and re-enrollment when this installation
 // was revoked (§35.8). A Managed account can be recovered from here with the login alone (§35.7).
 // Which Nodra vault this Obsidian vault syncs to is chosen once (`chooseVault`).
 
 const INSTALLATION_KEY = "nodra-installation-id";
-/** Where accounts are created (§35.2): the plugin creates none. */
-const WEB_URL = "https://app.nodranotes.com";
-const SIGN_IN_FIRST = 'Nodra: sign in first (command "Nodra: Sign in").';
+/** Set once the panel has been offered on this vault and device (the first run opens it, once). */
+const FIRST_RUN_KEY = "nodra-panel-offered";
+const SIGN_IN_FIRST = "Nodra: sign in first, from the Nodra panel.";
 
 type NodeFs = { promises: { rename(from: string, to: string): Promise<void> } };
 
@@ -49,8 +52,6 @@ function replacingRename(adapter: unknown): ((tmp: string, dest: string) => Prom
   return (tmp, dest) => nodeFs.promises.rename(adapter.getFullPath(tmp), adapter.getFullPath(dest));
 }
 
-const LABEL: Record<SyncStatus["kind"], string> = { idle: "Nodra: idle", syncing: "Nodra: syncing", paused: "Nodra: paused", error: "Nodra: error" };
-
 export default class NodraPlugin extends Plugin {
   override settings: PluginSettings = DEFAULT_SETTINGS;
   /** Every request to the Nodra API goes through this one fetch (staging: the Cloudflare Access headers, NOTES question 393). */
@@ -62,6 +63,31 @@ export default class NodraPlugin extends Plugin {
   private ownership: Ownership | null = null;
   private owning: Promise<Ownership> | null = null;
   private readonly unloading = new AbortController();
+
+  // What the panel shows (panel.ts `PanelFacts`): facts about the plugin, in memory only.
+  private phase: PluginPhase = { kind: "starting" };
+  private email: string | null = null;
+  private protection: Protection | null = null;
+  private busy: PanelFacts["busy"] = null;
+  private problem: string | null = null;
+  private lastSyncedAt: number | null = null;
+  private readonly listeners = new Set<() => void>();
+
+  /** The panel's controls, each one of the flows below (the same the commands use). */
+  private readonly panelActions: PanelActions = {
+    signIn: (email, password) => this.signIn(email, password),
+    connect: (secrets) => this.connect(secrets),
+    chooseVault: (vaultId) => this.chooseVault(vaultId),
+    createVault: () => void this.createVault(),
+    syncNow: () => this.syncNow(),
+    pause: () => void this.controller?.pause(),
+    resume: () => (this.controller ? this.controller.resume() : void this.restart()),
+    restart: () => void this.restart(),
+    signInAgain: () => void this.logout(),
+    signOut: () => void this.logout(),
+    devices: () => void this.devices(),
+    recover: () => void this.recoverDialog(),
+  };
 
   override async onload(): Promise<void> {
     const { settings, rewrite } = loadSettings(await this.loadData());
@@ -79,18 +105,18 @@ export default class NodraPlugin extends Plugin {
       api: this.api,
       authFetch: (input, init) => fetch(input, init),
     });
+    this.registerView(VIEW_TYPE_NODRA, (leaf) => new NodraPanelView(leaf, { facts: () => this.facts(), subscribe: (l) => this.subscribe(l), actions: this.panelActions }));
+    this.addRibbonIcon("cloud", "Nodra", () => void this.openPanel());
     this.addSettingTab(new NodraSettingTab(this.app, this));
     this.statusEl = this.addStatusBarItem();
-    this.show({ kind: "paused", detail: "not started" });
-    this.addCommand({
-      id: "sync-now",
-      name: "Sync now",
-      callback: () => {
-        if (this.controller) this.controller.syncNow();
-        else new Notice('Nodra is not syncing: sign in with the command "Nodra: Sign in", then enroll this vault.');
-      },
-    });
-    this.addCommand({ id: "login", name: "Sign in", callback: () => this.signInDialog() });
+    this.statusEl.addClass("mod-clickable");
+    this.registerDomEvent(this.statusEl, "click", () => void this.openPanel());
+    this.registerDomEvent(window, "online", () => this.changed());
+    this.registerDomEvent(window, "offline", () => this.changed());
+    this.changed();
+    this.addCommand({ id: "open-panel", name: "Open the Nodra panel", callback: () => void this.openPanel() });
+    this.addCommand({ id: "sync-now", name: "Sync now", callback: () => this.syncNow() });
+    this.addCommand({ id: "login", name: "Sign in", callback: () => void this.openPanel() });
     this.addCommand({ id: "logout", name: "Sign out", callback: () => void this.logout() });
     this.addCommand({ id: "enroll", name: "Enroll this vault", callback: () => this.enrollDialog() });
     this.addCommand({ id: "devices", name: "Manage devices", callback: () => void this.devices() });
@@ -114,6 +140,7 @@ export default class NodraPlugin extends Plugin {
       this.registerEvent(this.app.vault.on("modify", hint));
       this.registerEvent(this.app.vault.on("delete", hint));
       this.registerEvent(this.app.vault.on("rename", hint));
+      void this.firstRun();
       void this.restart();
     });
   }
@@ -126,6 +153,7 @@ export default class NodraPlugin extends Plugin {
     this.ownership = null;
     void this.controller?.stop();
     this.controller = null;
+    this.listeners.clear();
     void this.auth?.dispose();
   }
 
@@ -133,12 +161,56 @@ export default class NodraPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
+  /** The Nodra panel in the right sidebar: the one already open, or a new one; then shown. */
+  async openPanel(): Promise<void> {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(VIEW_TYPE_NODRA)[0] ?? null;
+    if (leaf === null) {
+      leaf = workspace.getRightLeaf(false);
+      if (leaf === null) return;
+      await leaf.setViewState({ type: VIEW_TYPE_NODRA, active: true });
+    }
+    await workspace.revealLeaf(leaf);
+  }
+
+  /** The plugin just enabled on this vault and device, signed out: the panel opens by itself, once. */
+  private async firstRun(): Promise<void> {
+    if (this.app.loadLocalStorage(FIRST_RUN_KEY) !== null) return;
+    this.app.saveLocalStorage(FIRST_RUN_KEY, "1");
+    const login = await this.auth?.current().catch(() => null);
+    if (login == null) await this.openPanel();
+  }
+
+  private facts(): PanelFacts {
+    return { phase: this.phase, email: this.email, protection: this.protection, busy: this.busy, problem: this.problem, online: navigator.onLine, lastSyncedAt: this.lastSyncedAt, now: Date.now() };
+  }
+
+  private subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /** A fact changed: the status bar and every open panel follow. */
+  private changed(): void {
+    const state = panelState(this.facts());
+    this.statusEl?.setText(statusBarText(state));
+    this.statusEl?.setAttr("title", statusBarTitle(state));
+    for (const listener of this.listeners) listener();
+  }
+
+  private setPhase(phase: PluginPhase): void {
+    this.phase = phase;
+    const s = phase.kind === "syncing" ? phase.status : null;
+    if (s !== null && s.kind === "idle" && s.code === undefined && s.detail === undefined) this.lastSyncedAt = Date.now();
+    this.changed();
+  }
+
   /** This installation's login as a new session (login.ts); null when signed out, or unreadable (shown). */
   async currentLogin(): Promise<PluginLogin | null> {
     try {
       return (await this.auth?.current()) ?? null;
     } catch (e) {
-      this.show({ kind: "error", detail: `the login could not be read: ${signInProblem(e)}` });
+      this.setPhase({ kind: "login-unreadable", detail: signInProblem(e) });
       return null;
     }
   }
@@ -147,44 +219,40 @@ export default class NodraPlugin extends Plugin {
   async restart(): Promise<void> {
     await this.controller?.stop();
     this.controller = null;
-    if (!("locks" in navigator) || typeof BroadcastChannel === "undefined") {
-      this.show({ kind: "error", detail: "this device is not supported: Nodra needs navigator.locks and BroadcastChannel" });
-      return;
-    }
+    this.problem = null;
+    this.setPhase({ kind: "starting" });
+    if (!("locks" in navigator) || typeof BroadcastChannel === "undefined") return this.setPhase({ kind: "unsupported" });
     const login = await this.currentLogin();
     if (login === null) {
-      this.show({ kind: "paused", detail: 'signed out: run the command "Nodra: Sign in"' });
+      this.email = null;
+      this.protection = null;
+      if (this.phase.kind !== "login-unreadable") this.setPhase({ kind: "signed-out" });
       return;
     }
+    this.email = login.email;
     let installationId: string;
     try {
       installationId = (await this.own()).installationId;
     } catch {
       return; // unloaded while waiting for the owner lock
     }
+    const conn = { ...loginConnection(login, this.settings.vaultId), installationId };
     let trusted: Awaited<ReturnType<typeof trustedPlugin>>;
     try {
-      trusted = await trustedPlugin({ ...loginConnection(login, this.settings.vaultId), installationId });
+      trusted = await trustedPlugin(conn);
     } catch (e) {
-      this.show({ kind: "error", detail: `Nodra could not be reached: ${String(e)}` });
-      return;
+      return this.setPhase({ kind: "unreachable", detail: String(e) });
     }
-    if (trusted.replica === null) {
-      this.show({ kind: "paused", detail: 'not enrolled: run the command "Nodra: Enroll this vault"' });
-      return;
-    }
+    void this.checkProtection(conn);
+    if (trusted.replica === null) return this.setPhase({ kind: "not-enrolled" });
     const choice = trusted.vault;
-    if (choice.kind === "NONE") {
-      this.show({ kind: "paused", detail: `the account has no vault yet: finish creating it at ${WEB_URL}` });
-      return;
-    }
+    if (choice.kind === "NONE") return this.setPhase({ kind: "no-vault" });
     if (choice.kind === "ASK") {
-      this.show({ kind: "paused", detail: "choose which Nodra vault this Obsidian vault syncs to" });
-      new VaultPickerModal(this.app, choice.vaults, (vaultId) => void this.chooseVault(vaultId)).open();
-      return;
+      this.setPhase({ kind: "choose-vault", vaults: choice.vaults });
+      return void this.openPanel();
     }
     if (choice.remember) await this.chooseVault(choice.vaultId, false);
-    const conn = loginConnection(login, choice.vaultId);
+    const sync = loginConnection(login, choice.vaultId);
     let offered = false;
     this.controller = startSync({
       ...trusted.replica,
@@ -198,25 +266,42 @@ export default class NodraPlugin extends Plugin {
       ),
       locks: navigator.locks,
       channel: (name) => new BroadcastChannel(name),
-      fetch: conn.fetch,
-      settings: conn.settings,
+      fetch: sync.fetch,
+      settings: sync.settings,
       installationId,
       onStatus: (status) => {
-        this.show(status);
-        // §18.3, §35.8: revoked; offered once per start, and the command stays available.
+        this.setPhase({ kind: "syncing", status });
+        // §18.3, §35.8: revoked; told once per start, and the panel offers to connect again.
         if (status.reenroll && !offered) {
           offered = true;
-          const notice = new Notice("Nodra: this vault's access was revoked, so it stopped syncing. Unsent changes are kept until it is enrolled again.", 0);
-          notice.messageEl.createEl("button", { text: "Enroll again" }).addEventListener("click", (event) => {
+          const notice = new Notice("Nodra: this vault's access was revoked, so it stopped syncing. Unsent changes are kept until it is connected again.", 0);
+          notice.messageEl.createEl("button", { text: "Connect again" }).addEventListener("click", (event) => {
             event.stopPropagation();
             notice.hide();
-            this.enrollDialog();
+            void this.openPanel();
           });
         }
       },
       notice: (message) => new Notice(message, 0),
       onSecurityAlert: (alert) => this.securityAlert(alert),
     });
+    this.setPhase({ kind: "syncing", status: this.controller.status() });
+  }
+
+  /** §3.6, once per login: Managed connects with the login alone, Private asks for the two secrets. */
+  private async checkProtection(conn: Parameters<typeof pluginProtection>[0]): Promise<void> {
+    if (this.protection !== null) return;
+    try {
+      this.protection = (await pluginProtection(conn)).mode;
+    } catch (e) {
+      this.problem = `Your account could not be checked: ${String(e)}`;
+    }
+    this.changed();
+  }
+
+  private syncNow(): void {
+    if (this.controller) this.controller.syncNow();
+    else void this.openPanel();
   }
 
   /**
@@ -255,13 +340,36 @@ export default class NodraPlugin extends Plugin {
     return { ...loginConnection(login, this.settings.vaultId), installationId };
   }
 
-  /** §35.4 for this installation, then sync. The secrets live only for this call. */
+  /** §35.4 for this installation. The secrets live only for this call. Throws when it fails. */
   private async enroll(secrets: AccountSecrets | undefined): Promise<void> {
     const conn = await this.connection();
-    if (conn === null) return;
+    if (conn === null) throw new Error("signed out");
+    await enrollPlugin({ ...conn, secrets, label: `Obsidian: ${this.app.vault.getName()}` });
+  }
+
+  /** The panel's "Connect this vault": §35.4, then sync; a failure is shown in the panel. */
+  private async connect(secrets: AccountSecrets | undefined): Promise<void> {
+    if (this.busy !== null) return;
+    this.busy = "connect";
+    this.problem = null;
+    this.changed();
+    try {
+      await this.enroll(secrets);
+    } catch (e) {
+      this.problem = `Could not connect: ${String(e)}`;
+      return;
+    } finally {
+      this.busy = null;
+      this.changed();
+    }
+    await this.restart();
+  }
+
+  /** §35.4 from the command or after a recovery, with notices; then sync. */
+  private async enrollWithNotices(secrets: AccountSecrets | undefined): Promise<void> {
     new Notice("Nodra: enrolling this vault…");
     try {
-      await enrollPlugin({ ...conn, secrets, label: `Obsidian: ${this.app.vault.getName()}` });
+      await this.enroll(secrets);
     } catch (e) {
       return void new Notice(`Nodra: enrollment failed: ${String(e)}`, 0);
     }
@@ -271,7 +379,7 @@ export default class NodraPlugin extends Plugin {
 
   /** §35.4 (and §35.8 again after a revocation): on a Private account, the two secrets for this one call. */
   private enrollDialog(): void {
-    void this.unlockDialog("Enroll this vault", "", "Enroll", (secrets) => this.enroll(secrets));
+    void this.unlockDialog("Enroll this vault", "", "Enroll", (secrets) => this.enrollWithNotices(secrets));
   }
 
   /**
@@ -370,6 +478,7 @@ export default class NodraPlugin extends Plugin {
   private async recover(): Promise<void> {
     await this.controller?.stop();
     this.controller = null;
+    this.setPhase({ kind: "starting" });
     const auth = this.auth;
     const login = await this.currentLogin();
     if (auth === null || login === null) return void new Notice(SIGN_IN_FIRST);
@@ -387,17 +496,25 @@ export default class NodraPlugin extends Plugin {
       return void (await this.restart());
     }
     new Notice("Nodra: the account is recovered. Every device was revoked; each one enrolls again with your login.", 0);
-    await this.enroll(undefined);
+    await this.enrollWithNotices(undefined);
   }
 
-  signInDialog(): void {
-    void this.currentLogin().then((login) => new LoginModal(this.app, login?.email ?? "", (email, password) => this.login(email, password)).open());
-  }
-
-  /** §11.3: a new session of this installation's own; sync starts again over it. */
-  private async login(email: string, password: string): Promise<void> {
-    await this.auth?.signIn(email, password);
-    new Notice(`Nodra: signed in as ${email}.`);
+  /** §11.3 from the panel: a new session of this installation's own; sync starts again over it. A refusal is shown in the panel. */
+  private async signIn(email: string, password: string): Promise<void> {
+    if (this.busy !== null || this.auth === null) return;
+    this.busy = "sign-in";
+    this.problem = null;
+    this.changed();
+    try {
+      await this.auth.signIn(email, password);
+    } catch (e) {
+      this.problem = signInProblem(e);
+      return;
+    } finally {
+      this.busy = null;
+      this.changed();
+    }
+    this.protection = null;
     await this.restart();
   }
 
@@ -406,7 +523,10 @@ export default class NodraPlugin extends Plugin {
     await this.controller?.stop();
     this.controller = null;
     await this.auth?.signOut().catch(() => undefined); // the local session is dropped even when the server does not answer
-    this.show({ kind: "paused", detail: "signed out" });
+    this.email = null;
+    this.protection = null;
+    this.problem = null;
+    this.setPhase({ kind: "signed-out" });
   }
 
   /**
@@ -418,7 +538,7 @@ export default class NodraPlugin extends Plugin {
       locks: navigator.locks,
       installationId: () => this.installationId(),
       signal: this.unloading.signal,
-      onWaiting: () => this.show({ kind: "paused", detail: "another instance of Nodra controls this vault; waiting for it to close" }),
+      onWaiting: () => this.setPhase({ kind: "waiting-owner" }),
     }).then((o) => {
       if (this.unloading.signal.aborted) {
         o.release(); // granted as the plugin unloaded: never keep it
@@ -437,13 +557,9 @@ export default class NodraPlugin extends Plugin {
     this.app.saveLocalStorage(INSTALLATION_KEY, id);
     return id;
   }
-
-  private show(status: SyncStatus): void {
-    this.statusEl?.setText(LABEL[status.kind]);
-    this.statusEl?.setAttr("title", status.detail ?? LABEL[status.kind]);
-  }
 }
 
+/** What is not in the Nodra panel: which Nodra vault was chosen, restarting sync, and (staging) Cloudflare Access. */
 class NodraSettingTab extends PluginSettingTab {
   constructor(
     app: App,
@@ -455,25 +571,18 @@ class NodraSettingTab extends PluginSettingTab {
   override display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    const account = new Setting(containerEl).setName("Account").setDesc("Checking…");
-    void this.plugin.currentLogin().then((login) => {
-      if (login === null) {
-        account.setDesc("Signed out. Sign in with your Nodra account; create one in Nodra Web first.");
-        account.addButton((b) => b.setButtonText("Sign in").setCta().onClick(() => this.plugin.signInDialog()));
-      } else {
-        account.setDesc(`Signed in as ${login.email}.`);
-        account.addButton((b) =>
-          b.setButtonText("Sign out").onClick(async () => {
-            await this.plugin.logout();
-            this.display();
-          }),
-        );
-      }
-    });
+    new Setting(containerEl)
+      .setName("Use the Nodra panel")
+      .setDesc("Sign in, connect this vault, and see and control sync from the Nodra panel in the right sidebar: the Nodra button in the ribbon, or the status bar item.")
+      .addButton((b) => b.setButtonText("Open the Nodra panel").setCta().onClick(() => void this.plugin.openPanel()));
     const { vaultId } = this.plugin.settings;
     new Setting(containerEl)
       .setName("Nodra vault")
       .setDesc(vaultId === "" ? "Not chosen yet: asked when sync starts if your account has several." : `${vaultId} (chosen once for this Obsidian vault).`);
+    new Setting(containerEl)
+      .setName("Restart sync")
+      .setDesc("Stop and start syncing this vault again.")
+      .addButton((b) => b.setButtonText("Restart").onClick(() => void this.plugin.restart()));
     if (NODRA_ENV === "staging") {
       // NOTES question 393: only the staging API sits behind Cloudflare Access.
       new Setting(containerEl).setName("Cloudflare Access").setHeading();
@@ -492,58 +601,6 @@ class NodraSettingTab extends PluginSettingTab {
       field("Access client id", "accessClientId");
       field("Access client secret", "accessClientSecret", true);
     }
-    new Setting(containerEl)
-      .setName("Restart sync")
-      .setDesc("Stop and start syncing this vault again.")
-      .addButton((b) => b.setButtonText("Restart").onClick(() => void this.plugin.restart()));
-  }
-}
-
-/** The sign-in (§11.3) with an existing Nodra account; the password is not kept. Accounts are created in Nodra Web (§35.2). */
-class LoginModal extends Modal {
-  constructor(
-    app: App,
-    private readonly email: string,
-    private readonly submit: (email: string, password: string) => Promise<void>,
-  ) {
-    super(app);
-  }
-
-  override onOpen(): void {
-    const { contentEl } = this;
-    this.setTitle("Sign in to Nodra");
-    const intro = contentEl.createEl("p", { text: "Use the email and password of your Nodra account. This is not your Encryption Password. " });
-    intro.appendText("No account yet? Create one at ");
-    intro.createEl("a", { text: "app.nodranotes.com", href: WEB_URL });
-    intro.appendText(": this plugin does not create accounts.");
-    let email = this.email;
-    let password = "";
-    new Setting(contentEl).setName("Email").addText((t) => {
-      t.inputEl.type = "email";
-      t.setValue(email).onChange((v) => (email = v.trim()));
-    });
-    new Setting(contentEl).setName("Password").addText((t) => {
-      t.inputEl.type = "password";
-      t.onChange((v) => (password = v));
-    });
-    const error = contentEl.createEl("p", { cls: "mod-warning" });
-    new Setting(contentEl).addButton((b) =>
-      b.setButtonText("Sign in").setCta().onClick(() => {
-        if (email === "" || password === "") return;
-        b.setDisabled(true);
-        this.submit(email, password).then(
-          () => this.close(),
-          (e: unknown) => {
-            error.setText(signInProblem(e));
-            b.setDisabled(false);
-          },
-        );
-      }),
-    );
-  }
-
-  override onClose(): void {
-    this.contentEl.empty();
   }
 }
 
@@ -698,35 +755,6 @@ class DevicesModal extends Modal {
         );
       }
     }
-  }
-
-  override onClose(): void {
-    this.contentEl.empty();
-  }
-}
-
-/** Which Nodra vault this Obsidian vault syncs to: asked once, when the account has several. */
-class VaultPickerModal extends Modal {
-  constructor(
-    app: App,
-    private readonly vaults: readonly string[],
-    private readonly pick: (vaultId: string) => void,
-  ) {
-    super(app);
-  }
-
-  override onOpen(): void {
-    const { contentEl } = this;
-    this.setTitle("Choose the Nodra vault");
-    contentEl.createEl("p", { text: "This Obsidian vault will sync to the one you choose, for good: pointing it at another later would mix both." });
-    this.vaults.forEach((vaultId, i) =>
-      new Setting(contentEl).setName(`Vault ${i + 1}`).setDesc(vaultId).addButton((b) =>
-        b.setButtonText("Sync to this one").onClick(() => {
-          this.close();
-          this.pick(vaultId);
-        }),
-      ),
-    );
   }
 
   override onClose(): void {

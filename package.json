@@ -1,6 +1,6 @@
 {
   "name": "@nodra/obsidian-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -28,6 +28,7 @@
     "@types/node": "^22.20.4",
     "esbuild": "^0.28.2",
     "fake-indexeddb": "^6.2.5",
+    "happy-dom": "^20.14.5",
     "obsidian": "^1.13.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1",

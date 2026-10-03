@@ -21,8 +21,17 @@ const strip = (p: string) => p.replace(/^\/+/, "");
 /** Case- and normalization-insensitive name (Windows and macOS disks, NOTES question 117). */
 const foldKey = (p: string) => p.normalize("NFC").toLowerCase();
 
-/** Obsidian does not track dot paths (§15), and `.obsidian/` is not synced (§20.3). */
-const isHidden = (p: string) => p.split("/").some((s) => s.startsWith("."));
+/** The vault's own Nodra folder at the root: the one dot path that syncs (the published vault settings, §20.3). */
+export const NODRA_FOLDER = ".nodra";
+
+/**
+ * Obsidian does not track dot paths (§15), and `.obsidian/` is not synced (§20.3). The exception is the
+ * root `.nodra/` folder (vault-settings.ts), where nothing else but Nodra writes; dot paths inside it stay hidden.
+ */
+const isHidden = (p: string) => {
+  const segments = p.split("/");
+  return (segments[0] === NODRA_FOLDER ? segments.slice(1) : segments).some((s) => s.startsWith("."));
+};
 
 /**
  * The files the plugin syncs: every file that is not hidden, Markdown and attachments alike (§2.1), the

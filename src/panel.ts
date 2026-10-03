@@ -6,6 +6,31 @@ import type { SyncSignal } from "./other-sync.js";
 // for a held or stopped sync the plain-language reason and the one action that fixes it. The view
 // (panel-view.ts) renders the result and wires each action to the plugin's existing flows.
 
+/** §35.15: a live recovery request as the plugin tells it (sync-client `PendingRecovery`'s fields). */
+export interface PendingRecoveryFacts {
+  readonly kind: "RECOVERY_RESET" | "RECOVERY_KIT_REPLACEMENT" | "SWITCH_TO_MANAGED";
+  readonly phase: "WAITING" | "MATURE";
+  readonly maturesAt: number;
+  readonly expiresAt: number;
+  readonly vetoWith: "SECRETS" | "RECOVERY_KIT";
+}
+
+const REQUESTED: Readonly<Record<PendingRecoveryFacts["kind"], string>> = {
+  RECOVERY_RESET: "A Security Reset of your account was requested with your Recovery Kit",
+  RECOVERY_KIT_REPLACEMENT: "A replacement of your Recovery Kit was requested with your Encryption Password and Account Secret Key",
+  SWITCH_TO_MANAGED: "A switch of your account to Managed was requested with your Encryption Password and Account Secret Key",
+};
+
+/**
+ * §35.15 "todo cliente activo DEBE mostrarlo con las fechas y ofrecer el veto con la credencial que
+ * corresponde": what was requested, when it can run, and what vetoes it.
+ */
+export function pendingRecoveryText(p: PendingRecoveryFacts, at: (ms: number) => string = (ms) => new Date(ms).toLocaleString()): string {
+  const when = p.phase === "WAITING" ? `It can run from ${at(p.maturesAt)}.` : `It can run now, until ${at(p.expiresAt)}.`;
+  const credential = p.vetoWith === "SECRETS" ? "your Encryption Password and Account Secret Key" : "your current Recovery Kit";
+  return `${REQUESTED[p.kind]}. ${when} If it was not you, veto it with ${credential}.`;
+}
+
 /** Where accounts are created (§35.2): the plugin creates none. */
 export const WEB_URL = "https://app.nodranotes.com";
 

@@ -3,6 +3,7 @@ import { type App, FileSystemAdapter, Modal, Notice, Platform, Plugin, PluginSet
 import { v7 as uuidv7 } from "uuid";
 import { type SecretStore, pluginAuthStorage } from "./auth-storage.js";
 import {
+  type PendingRecovery,
   type SecurityAlert,
   type SyncController,
   createVaultFromPlugin,
@@ -11,20 +12,35 @@ import {
   otherAccountOf,
   pluginDevices,
   pluginLocalState,
+  pluginPendingRecovery,
   pluginProtection,
   pluginVaultLimit,
   recoverFromPlugin,
   revokeFromPlugin,
   startSync,
   trustedPlugin,
+  vetoFromPlugin,
 } from "./controller.js";
+import { pluginLabel } from "./device-label.js";
 import { obsidianFileSystem } from "./fs.js";
 import { type PluginAuth, type PluginLogin, loginConnection, pluginAuth, signInProblem } from "./login.js";
 import { detectOtherSyncTools, keptConfirmations, observeSyncTools, parseConfirmations, type SyncSignal, unconfirmedSignals } from "./other-sync.js";
 import { type Ownership, takeOwnership } from "./owner.js";
-import { type PanelFacts, type PluginPhase, type Protection, OTHER_SYNC_MANUAL_STEPS, disconnectConfirmation, otherSyncConfirmation, panelState, statusBarText, statusBarTitle } from "./panel.js";
+import {
+  type PanelFacts,
+  type PluginPhase,
+  type Protection,
+  OTHER_SYNC_MANUAL_STEPS,
+  disconnectConfirmation,
+  otherSyncConfirmation,
+  panelState,
+  pendingRecoveryText,
+  statusBarText,
+  statusBarTitle,
+} from "./panel.js";
 import { type PanelActions, NodraPanelView, VIEW_TYPE_NODRA } from "./panel-view.js";
 import { type PluginSettings, DEFAULT_SETTINGS, apiFetch, loadSettings } from "./settings.js";
+import { PUBLISHED_KEY, attachmentFolderSetting, publishVaultSettings } from "./vault-settings.js";
 
 // The Nodra Obsidian plugin (§42): the sync client over the vault's DataAdapter, on the real §31 crypto,
 // against the API and Supabase project fixed at build (globals.d.ts). Everything is done from the Nodra
@@ -44,6 +60,12 @@ const FIRST_RUN_KEY = "nodra-panel-offered";
 /** §20.2: the other-sync-tool signals the user confirmed on this vault and device (NOTES question 416). */
 const OTHER_SYNC_CONFIRMED_KEY = "nodra-other-sync-confirmed";
 const SIGN_IN_FIRST = "Nodra: sign in first, from the Nodra panel.";
+/**
+ * How often the attachment folder setting is checked besides Obsidian's `config-changed` event, which is
+ * internal (not in obsidian.d.ts) and may change: a check reads memory and stats one file, and writes
+ * only when the setting changed (vault-settings.ts).
+ */
+const VAULT_SETTINGS_CHECK_MS = 30_000;
 
 type NodeFs = { promises: { rename(from: string, to: string): Promise<void> } };
 
@@ -76,6 +98,7 @@ export default class NodraPlugin extends Plugin {
   private ownership: Ownership | null = null;
   private owning: Promise<Ownership> | null = null;
   private readonly unloading = new AbortController();
+  private publishingSettings = false;
 
   // What the panel shows (panel.ts `PanelFacts`): facts about the plugin, in memory only.
   private phase: PluginPhase = { kind: "starting" };
@@ -139,6 +162,7 @@ export default class NodraPlugin extends Plugin {
     this.addCommand({ id: "devices", name: "Manage devices", callback: () => void this.devices() });
     this.addCommand({ id: "create-vault", name: "Create a new Nodra vault", callback: () => void this.createVault() });
     this.addCommand({ id: "recover", name: "Recover the account", callback: () => void this.recoverDialog() });
+    this.addCommand({ id: "veto-recovery", name: "Veto a pending recovery request", callback: () => void this.pendingRecovery(true) });
     this.addCommand({
       id: "toggle-pause",
       name: "Pause or resume sync",
@@ -157,6 +181,10 @@ export default class NodraPlugin extends Plugin {
       this.registerEvent(this.app.vault.on("modify", hint));
       this.registerEvent(this.app.vault.on("delete", hint));
       this.registerEvent(this.app.vault.on("rename", hint));
+      // §20.3: the attachment folder setting, published when it changes (event, and a periodic check).
+      const onConfig = this.app.vault.on as unknown as (name: string, cb: () => void) => ReturnType<typeof this.app.vault.on>;
+      this.registerEvent(onConfig.call(this.app.vault, "config-changed", () => void this.publishVaultSettings()));
+      this.registerInterval(window.setInterval(() => void this.publishVaultSettings(), VAULT_SETTINGS_CHECK_MS));
       void this.firstRun();
       void this.restart();
     });
@@ -309,6 +337,85 @@ export default class NodraPlugin extends Plugin {
       onSecurityAlert: (alert) => this.securityAlert(alert),
     });
     this.setPhase({ kind: "syncing", status: this.controller.status() });
+    void this.pendingRecovery(false);
+    void this.publishVaultSettings();
+  }
+
+  /**
+   * §20.3: Obsidian's attachment folder setting for the other clients (vault-settings.ts), only while this
+   * vault syncs. A failure is retried at the next check.
+   */
+  private async publishVaultSettings(): Promise<void> {
+    if (this.controller === null || this.publishingSettings) return;
+    this.publishingSettings = true;
+    try {
+      const last: unknown = this.app.loadLocalStorage(PUBLISHED_KEY);
+      const wrote = await publishVaultSettings({
+        adapter: this.app.vault.adapter,
+        setting: attachmentFolderSetting(this.app.vault),
+        lastPublished: typeof last === "string" ? last : null,
+        remember: (value) => this.app.saveLocalStorage(PUBLISHED_KEY, value),
+      });
+      // Obsidian sends no vault event for a dot path: the sync is told directly.
+      if (wrote) this.controller?.hint();
+    } catch {
+      // the next check retries
+    } finally {
+      this.publishingSettings = false;
+    }
+  }
+
+  /** §35.15: the request ids already shown in this run; a restart shows a live one again. */
+  private readonly shownRecovery = new Set<string>();
+
+  /**
+   * §35.15: the account's live recovery request, shown with its dates and a Veto button until the
+   * user acts, once per run (`always`: the command, which says so when there is none).
+   */
+  private async pendingRecovery(always: boolean): Promise<void> {
+    const conn = await this.connection();
+    if (conn === null) return;
+    let pending: PendingRecovery | null;
+    try {
+      pending = await pluginPendingRecovery(conn);
+    } catch (e) {
+      if (always) new Notice(`Nodra: the pending recovery request could not be checked: ${String(e)}`, 0);
+      return;
+    }
+    if (pending === null) {
+      if (always) new Notice("Nodra: no recovery request is pending on your account.");
+      return;
+    }
+    if (!always && this.shownRecovery.has(pending.requestId)) return;
+    this.shownRecovery.add(pending.requestId);
+    const notice = new Notice(`Nodra: ${pendingRecoveryText(pending)}`, 0);
+    const found = pending;
+    notice.messageEl.createEl("button", { text: "Veto" }).addEventListener("click", (event) => {
+      event.stopPropagation();
+      notice.hide();
+      this.vetoDialog(found);
+    });
+  }
+
+  /** §35.15 the veto, with the credential the request asks for; neither is stored. */
+  private vetoDialog(pending: PendingRecovery): void {
+    const veto = async (credential: { readonly secrets: AccountSecrets } | { readonly recoveryKit: Uint8Array }) => {
+      const conn = await this.connection();
+      if (conn === null) return;
+      try {
+        await vetoFromPlugin({ ...conn, request: pending, ...credential });
+        new Notice("Nodra: the recovery request is vetoed.");
+      } catch (e) {
+        new Notice(`Nodra: the veto failed: ${String(e)}`, 0);
+      }
+    };
+    if (pending.vetoWith === "SECRETS") {
+      new SecretsModal(this.app, "Veto this recovery request", "The Security Reset is stopped for good.", "Veto", true, async (secrets) => {
+        if (secrets !== undefined) await veto({ secrets });
+      }).open();
+    } else {
+      new RecoveryKitModal(this.app, (recoveryKit) => veto({ recoveryKit })).open();
+    }
   }
 
   /**
@@ -381,6 +488,8 @@ export default class NodraPlugin extends Plugin {
    * unacknowledged, so it opens again at the next start. The rest stay as a notice with its own button.
    */
   private securityAlert(alert: SecurityAlert): void {
+    // §35.15: a request is also shown with its dates and its veto, from getRootState.
+    if (alert.eventType.endsWith("_REQUESTED")) void this.pendingRecovery(false);
     const acknowledge = () =>
       void this.controller?.acknowledgeSecurityEvent(alert.id).catch(() => {
         new Notice("Nodra: acknowledged on this device; the server is told as soon as it is reachable.");
@@ -415,7 +524,7 @@ export default class NodraPlugin extends Plugin {
   private async enroll(secrets: AccountSecrets | undefined): Promise<void> {
     const conn = await this.connection();
     if (conn === null) throw new Error("signed out");
-    await enrollPlugin({ ...conn, secrets, label: `Obsidian: ${this.app.vault.getName()}` });
+    await enrollPlugin({ ...conn, secrets, label: pluginLabel(Platform, this.app.vault.getName()) });
   }
 
   /** The panel's "Connect this vault": §35.4, then sync; a failure is shown in the panel. */
@@ -755,6 +864,35 @@ class SecretsModal extends Modal {
       b.setButtonText(this.action).setCta().onClick(() => {
         this.close();
         void this.submit(this.askSecrets ? { password, secretKey } : undefined);
+      }),
+    );
+  }
+
+  override onClose(): void {
+    this.contentEl.empty();
+  }
+}
+
+/** §35.15: the veto of a kit replacement or a switch to Managed, with the current Recovery Kit file. */
+class RecoveryKitModal extends Modal {
+  constructor(
+    app: App,
+    private readonly submit: (recoveryKit: Uint8Array) => Promise<void>,
+  ) {
+    super(app);
+  }
+
+  override onOpen(): void {
+    const { contentEl } = this;
+    this.setTitle("Veto this recovery request");
+    contentEl.createEl("p", { text: "Open your current Recovery Kit file. The request is stopped for good. The kit is used once and not stored." });
+    const input = contentEl.createEl("input", { type: "file" });
+    new Setting(contentEl).addButton((b) =>
+      b.setButtonText("Veto").setWarning().onClick(() => {
+        const file = input.files?.[0];
+        if (file === undefined) return void new Notice("Nodra: choose your Recovery Kit file first.");
+        this.close();
+        void file.arrayBuffer().then((bytes) => this.submit(new Uint8Array(bytes)));
       }),
     );
   }

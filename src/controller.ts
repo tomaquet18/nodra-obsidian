@@ -8,6 +8,7 @@ import {
   type FileSystem,
   type LocalSyncState,
   type LockManagerPort,
+  type PendingRecovery,
   type RecoveryPhase,
   type Settings as SyncSettings,
   type SyncClientDeps,
@@ -16,6 +17,7 @@ import {
   type TrustSession,
   DEFAULT_TIMING as CLIENT_TIMING,
   accessTokenSession,
+  accountPins,
   accountProtection,
   accountState,
   createVaultFromClient,
@@ -23,6 +25,7 @@ import {
   enrollReplica,
   listDevices,
   localSyncState,
+  pendingRecovery,
   recoverManagedAccountWithRelogin,
   revokeDevice,
   settleSecurityBundle,
@@ -30,6 +33,8 @@ import {
   trustedIdentity,
   trustedReplica,
   vaultLimitProblem,
+  vetoRecoveryWithKit,
+  vetoRecoveryWithSecrets,
 } from "@nodra/sync-client";
 import { debounce } from "lodash-es";
 
@@ -37,7 +42,7 @@ import { debounce } from "lodash-es";
 // (sync-client `startSyncClient`) leads through `lead()` (never with `steal`: §20.2 plugin); here vault
 // events become debounced wake-ups (§12.2 rule 2 hints, §14).
 
-export type { LocalSyncState, OtherAccount, SecurityAlert, SyncStatus } from "@nodra/sync-client";
+export type { LocalSyncState, OtherAccount, PendingRecovery, SecurityAlert, SyncStatus } from "@nodra/sync-client";
 export { otherAccountOf } from "@nodra/sync-client";
 
 /** Settings over a frozen access token (tests, and the §35.7 recovery, which swaps its token itself). */
@@ -210,6 +215,22 @@ export const createVaultFromPlugin = (c: Connection & { readonly secrets?: Accou
 export async function enrollPlugin(c: Connection & { readonly secrets?: AccountSecrets | undefined; readonly label: string }): Promise<void> {
   await enrollReplica({ ...accountOf(c), type: "PLUGIN_INSTALLATION", label: c.label, ...secretsOf(c) });
 }
+
+/**
+ * §35.15: the account's live recovery request, verified against the root chain (through this
+ * installation's pins once enrolled), or null. Every active client shows it.
+ */
+export async function pluginPendingRecovery(c: Connection): Promise<PendingRecovery | null> {
+  const pins = await accountPins(accountOf(c)).catch(() => null);
+  return pendingRecovery({ ...sessionOf(c), ...(pins === null ? {} : { pins }) });
+}
+
+/**
+ * §35.15 the veto from this plugin, with the credential the request asks for: the two secrets for a
+ * reset, the Recovery Kit file's bytes for a kit replacement or a switch. Neither is stored.
+ */
+export const vetoFromPlugin = (c: Connection & { readonly request: PendingRecovery } & ({ readonly secrets: AccountSecrets } | { readonly recoveryKit: Uint8Array })): Promise<void> =>
+  "secrets" in c ? vetoRecoveryWithSecrets({ ...accountOf(c), secrets: c.secrets, request: c.request }) : vetoRecoveryWithKit({ ...sessionOf(c), recoveryKit: c.recoveryKit, request: c.request });
 
 /** Where this Obsidian vault's local sync state is: its installation, and the Nodra vault it chose ("" when none). */
 interface LocalPlugin {

@@ -1,8 +1,9 @@
 # Nodra for Obsidian
 
-End-to-end encrypted sync for your Obsidian vaults with a [Nodra](https://app.nodranotes.com) account.
-Notes and attachments are encrypted on your device before they leave it; the Nodra server stores
-ciphertext only, never your note text or file names.
+Encrypted sync for your Obsidian vaults with a [Nodra](https://app.nodranotes.com) account, with access
+from any browser. Notes and attachments are encrypted on your device before they leave it. Turn on
+Private mode and the sync is end-to-end encrypted. In Managed mode, the default, Nodra keeps an escrow of
+your account key so it can help you recover access (see below).
 
 > **Beta.** Nodra is in beta. Keep a backup of any vault you sync with it.
 
@@ -72,17 +73,18 @@ those changes are taken as they are, and the check goes on watching. Until you d
 after restarting Obsidian. A note emptied on both sides never counts, and Nodra's own writes never do,
 even after a crash in the middle of one.
 
-## End-to-end encryption
+## Encryption and protection modes
 
-Each vault is encrypted with keys that only your trusted devices hold. When you enroll this vault, the
+Each vault is encrypted on your devices with keys your trusted devices hold. When you enroll this vault, the
 plugin creates its own device key, which stays non-extractable in Obsidian's local storage (IndexedDB),
 and your account grants it access. You can list and revoke devices at any time; a revoked device gets
 nothing new.
 
-- **Managed** (the default): your sign-in unlocks the account on a new device. Nodra can help you
-  recover it if you lose access, so Nodra's service is part of what protects your keys.
-- **Private**: new devices also need your Encryption Password and your Account Secret Key. Nodra cannot
-  unlock or recover your account; only your Recovery Kit can.
+- **Managed** (the default): your sign-in unlocks the account on a new device. Nodra keeps an escrow of
+  your account key so it can help you recover access, which also means Nodra could technically decrypt
+  a Managed vault. Your notes are encrypted in transit and at rest.
+- **Private**: new devices also need your Encryption Password and your Account Secret Key. In Private
+  mode Nodra cannot read your notes or unlock or recover your account; only your Recovery Kit can.
 
 ## Network use
 

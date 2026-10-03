@@ -1,0 +1,30 @@
+{
+  "name": "@nodra/key-lifecycle",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./vectors/unlock.json": "./vectors/unlock.json",
+    "./test-support/bundle": "./test/bundle-support.ts",
+    "./test-support/chain": "./test/chain-support.ts",
+    "./test-support/base": "./test/support.ts",
+    "./test-support/epoch": "./test/epoch-support.ts",
+    "./test-support/bytes": "./test/bytes-support.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@nodra/crypto": "workspace:*",
+    "@nodra/encoding": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "fast-check": "^4.10.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  },
+  "license": "MIT"
+}

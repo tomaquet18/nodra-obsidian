@@ -2,14 +2,16 @@
   "name": "@nodra/obsidian-plugin",
   "version": "0.5.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
+  "packageManager": "pnpm@10.7.0",
   "scripts": {
-    "build": "node esbuild.config.mjs production",
+    "build": "node esbuild.config.mjs production --config=production.env",
     "build:staging": "node esbuild.config.mjs staging",
     "build:dev": "node esbuild.config.mjs development",
     "dev": "node esbuild.config.mjs development --watch",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run && pnpm -r test",
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r typecheck",
     "version": "node version-bump.mjs"
   },
   "dependencies": {
@@ -20,10 +22,6 @@
     "uuid": "^14.0.2"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.8",
-    "@nodra/control-plane": "workspace:*",
-    "@nodra/dev-server": "workspace:*",
-    "@nodra/worker-api": "workspace:*",
     "@types/lodash-es": "^4.17.12",
     "@types/node": "^22.20.4",
     "esbuild": "^0.28.2",
@@ -33,5 +31,11 @@
     "typescript": "^7.0.2",
     "vitest": "^5.0.1",
     "zod": "^4.6.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "@codemirror/state": "6.7.6",
+      "@codemirror/view": "6.43.13"
+    }
   }
 }

@@ -1,0 +1,713 @@
+{
+  "description": "NCE record vectors for the frozen key tables of crypto_version = 1 and the ADR-021 additions of crypto_version = 2, plus the ADR-022 RecoveryRecord and SecurityBundle key 15 (spec §8 and §23.4). Every CBOR header byte was written by hand from the key tables and RFC 8949; a script concatenated the declared pieces. The encoder was never used to produce them.",
+  "valueNotation": "Driven by the schema: a bytes field is lowercase hex, a uint is a JSON number, text and enum are JSON strings, bool is a boolean, a nullable field may be null, an array is a JSON array, a nested record is a JSON object, and a role collection is a list of [code, value].",
+  "fixtures": {
+    "A16": "000102030405060708090a0b0c0d0e0f",
+    "B16": "101112131415161718191a1b1c1d1e1f",
+    "C16": "202122232425262728292a2b2c2d2e2f",
+    "D16": "303132333435363738393a3b3c3d3e3f",
+    "E16": "404142434445464748494a4b4c4d4e4f",
+    "F16": "505152535455565758595a5b5c5d5e5f",
+    "H1": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "H2": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "H3": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+    "H4": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+    "H5": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+    "H6": "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+    "H7": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf",
+    "H8": "e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+    "S1": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "S2": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+    "S3": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+    "S4": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+  },
+  "records": [
+    {
+      "name": "RevisionManifest, live revision",
+      "record": "RevisionManifest",
+      "value": {
+        "object_id": "000102030405060708090a0b0c0d0e0f",
+        "revision_id": "101112131415161718191a1b1c1d1e1f",
+        "parent_revision_id": null,
+        "path": "notes/a.md",
+        "mime": "text/markdown",
+        "mtime_ms": 1700000000000,
+        "content_blob_id": "202122232425262728292a2b2c2d2e2f",
+        "content_fingerprint": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "content_plaintext_size": 42,
+        "deleted": false,
+        "content_epoch_id": "303132333435363738393a3b3c3d3e3f"
+      },
+      "hex": "ab0150000102030405060708090a0b0c0d0e0f0250101112131415161718191a1b1c1d1e1f03f6046a6e6f7465732f612e6d64056d746578742f6d61726b646f776e061b0000018bcfe568000750202122232425262728292a2b2c2d2e2f085820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f09182a0af40b50303132333435363738393a3b3c3d3e3f"
+    },
+    {
+      "name": "RevisionManifest, deletion revision",
+      "record": "RevisionManifest",
+      "value": {
+        "object_id": "000102030405060708090a0b0c0d0e0f",
+        "revision_id": "202122232425262728292a2b2c2d2e2f",
+        "parent_revision_id": "101112131415161718191a1b1c1d1e1f",
+        "path": "notes/a.md",
+        "mime": "text/markdown",
+        "mtime_ms": 1700000000000,
+        "content_blob_id": null,
+        "content_fingerprint": null,
+        "content_plaintext_size": null,
+        "deleted": true,
+        "content_epoch_id": null
+      },
+      "hex": "ab0150000102030405060708090a0b0c0d0e0f0250202122232425262728292a2b2c2d2e2f0350101112131415161718191a1b1c1d1e1f046a6e6f7465732f612e6d64056d746578742f6d61726b646f776e061b0000018bcfe5680007f608f609f60af50bf6"
+    },
+    {
+      "name": "WrappedPrivateKey, account encryption key",
+      "record": "WrappedPrivateKey",
+      "value": {
+        "key_role": "ACCOUNT_ENCRYPTION",
+        "blob": "15161718"
+      },
+      "hex": "a201724143434f554e545f454e4352595054494f4e024415161718"
+    },
+    {
+      "name": "WrappedPrivateKey, account signing key",
+      "record": "WrappedPrivateKey",
+      "value": {
+        "key_role": "ACCOUNT_SIGNING",
+        "blob": "191a1b1c"
+      },
+      "hex": "a2016f4143434f554e545f5349474e494e470244191a1b1c"
+    },
+    {
+      "name": "Argon2Params, ADR-004 profile 1",
+      "record": "Argon2Params",
+      "value": {
+        "memory_kib": 65536,
+        "iterations": 3,
+        "parallelism": 4,
+        "version": 1
+      },
+      "hex": "a4011a00010000020303040401"
+    },
+    {
+      "name": "AccountSecurityProfile",
+      "record": "AccountSecurityProfile",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "kdf_salt": "101112131415161718191a1b1c1d1e1f",
+        "argon2_params": {
+          "memory_kib": 65536,
+          "iterations": 3,
+          "parallelism": 4,
+          "version": 1
+        },
+        "wrapped_account_encryption_key": {
+          "key_role": "ACCOUNT_ENCRYPTION",
+          "blob": "15161718"
+        },
+        "wrapped_account_signing_key": {
+          "key_role": "ACCOUNT_SIGNING",
+          "blob": "191a1b1c"
+        },
+        "config_version": 7,
+        "config_blob": "11121314"
+      },
+      "hex": "a70150000102030405060708090a0b0c0d0e0f0250101112131415161718191a1b1c1d1e1f03a4011a0001000002030304040104a201724143434f554e545f454e4352595054494f4e02441516171805a2016f4143434f554e545f5349474e494e470244191a1b1c0607074411121314"
+    },
+    {
+      "name": "AccountSecurityConfig",
+      "record": "AccountSecurityConfig",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "config_version": 7,
+        "root_generation": 1,
+        "root_hash": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+        "genesis_root_hash": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+        "account_encryption_public_key_hash": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+        "account_signing_public_key_hash": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+        "recovery_encryption_public_key_hash": "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+        "recovery_authority_public_key_hash": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf",
+        "registry_version": 2,
+        "registry_hash": "e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+        "crypto_version": 1
+      },
+      "hex": "ac0150000102030405060708090a0b0c0d0e0f02070301045820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f055820404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f065820606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f075820808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f085820a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf095820c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf0a020b5820e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff0c01"
+    },
+    {
+      "name": "RootDescriptor, genesis (previous_root_hash = null)",
+      "record": "RootDescriptor",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "root_generation": 1,
+        "account_encryption_public_key": "01020304",
+        "account_signing_public_key": "05060708",
+        "recovery_encryption_public_key": "090a0b0c",
+        "recovery_authority_public_key": "0d0e0f10",
+        "previous_root_hash": null,
+        "crypto_version": 1
+      },
+      "hex": "a80150000102030405060708090a0b0c0d0e0f02010344010203040444050607080544090a0b0c06440d0e0f1007f60801"
+    },
+    {
+      "name": "RootTransition, GENESIS with roles 2 and 4",
+      "record": "RootTransition",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "transition_type": "GENESIS",
+        "old_root_hash": null,
+        "new_root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "new_root_generation": 1,
+        "signatures": [
+          [
+            2,
+            "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+          ],
+          [
+            4,
+            "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+          ]
+        ]
+      },
+      "hex": "a60150000102030405060708090a0b0c0d0e0f026747454e4553495303f6045820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0501068282025840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f82045840404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+    },
+    {
+      "name": "RootTransition, RECOVERY_RESET with roles 2 and 3",
+      "record": "RootTransition",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "transition_type": "RECOVERY_RESET",
+        "old_root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "new_root_hash": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+        "new_root_generation": 2,
+        "signatures": [
+          [
+            2,
+            "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+          ],
+          [
+            3,
+            "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+          ]
+        ]
+      },
+      "hex": "a60150000102030405060708090a0b0c0d0e0f026e5245434f564552595f5245534554035820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f045820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0502068282025840808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf82035840c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+    },
+    {
+      "name": "RegistryRecipient, active trusted browser",
+      "record": "RegistryRecipient",
+      "value": {
+        "recipient_id": "404142434445464748494a4b4c4d4e4f",
+        "type": "TRUSTED_BROWSER",
+        "public_key": "292a2b2c",
+        "label": "Laptop",
+        "status": "ACTIVE",
+        "added_version": 2,
+        "revoked_version": null
+      },
+      "hex": "a70150404142434445464748494a4b4c4d4e4f026f545255535445445f42524f575345520344292a2b2c04664c6170746f700566414354495645060207f6"
+    },
+    {
+      "name": "Registry, one active recipient",
+      "record": "Registry",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "registry_version": 2,
+        "previous_registry_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "root_generation": 1,
+        "recipients": [
+          {
+            "recipient_id": "404142434445464748494a4b4c4d4e4f",
+            "type": "TRUSTED_BROWSER",
+            "public_key": "292a2b2c",
+            "label": "Laptop",
+            "status": "ACTIVE",
+            "added_version": 2,
+            "revoked_version": null
+          }
+        ],
+        "signature": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+      },
+      "hex": "a60150000102030405060708090a0b0c0d0e0f0202035820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f04010581a70150404142434445464748494a4b4c4d4e4f026f545255535445445f42524f575345520344292a2b2c04664c6170746f700566414354495645060207f6065840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+    },
+    {
+      "name": "EpochDescriptor, first epoch of a vault",
+      "record": "EpochDescriptor",
+      "value": {
+        "vault_id": "101112131415161718191a1b1c1d1e1f",
+        "epoch_id": "202122232425262728292a2b2c2d2e2f",
+        "previous_epoch_id": null,
+        "previous_descriptor_hash": null,
+        "root_generation": 1,
+        "root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "registry_version": 1,
+        "registry_hash": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+        "epoch_commitment": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+        "envelope_set_hash": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+        "crypto_version": 1,
+        "signature": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+      },
+      "hex": "ac0150101112131415161718191a1b1c1d1e1f0250202122232425262728292a2b2c2d2e2f03f604f60501065820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0701085820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f095820404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f0a5820606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f0b010c5840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+    },
+    {
+      "name": "EpochEnvelope, ACCOUNT recipient",
+      "record": "EpochEnvelope",
+      "value": {
+        "vault_id": "101112131415161718191a1b1c1d1e1f",
+        "epoch_id": "202122232425262728292a2b2c2d2e2f",
+        "recipient_id": "303132333435363738393a3b3c3d3e3f",
+        "recipient_type": "ACCOUNT",
+        "ciphertext": "1d1e1f20",
+        "algorithm_version": 1
+      },
+      "hex": "a60150101112131415161718191a1b1c1d1e1f0250202122232425262728292a2b2c2d2e2f0350303132333435363738393a3b3c3d3e3f04674143434f554e5405441d1e1f200601"
+    },
+    {
+      "name": "RecoveryKit",
+      "record": "RecoveryKit",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "genesis_root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "recovery_encryption_private_key": "21222324",
+        "recovery_authority_private_key": "25262728",
+        "recovery_encryption_public_key_hash": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+        "recovery_authority_public_key_hash": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+        "created_at": 1700000000000
+      },
+      "hex": "a70150000102030405060708090a0b0c0d0e0f025820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f034421222324044425262728055820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f065820404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f071b0000018bcfe56800"
+    },
+    {
+      "name": "BundleEpoch, one descriptor and one envelope",
+      "record": "BundleEpoch",
+      "value": {
+        "descriptor": {
+          "vault_id": "101112131415161718191a1b1c1d1e1f",
+          "epoch_id": "202122232425262728292a2b2c2d2e2f",
+          "previous_epoch_id": null,
+          "previous_descriptor_hash": null,
+          "root_generation": 1,
+          "root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+          "registry_version": 1,
+          "registry_hash": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+          "epoch_commitment": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+          "envelope_set_hash": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+          "crypto_version": 1,
+          "signature": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+        },
+        "envelopes": [
+          {
+            "vault_id": "101112131415161718191a1b1c1d1e1f",
+            "epoch_id": "202122232425262728292a2b2c2d2e2f",
+            "recipient_id": "303132333435363738393a3b3c3d3e3f",
+            "recipient_type": "ACCOUNT",
+            "ciphertext": "1d1e1f20",
+            "algorithm_version": 1
+          }
+        ]
+      },
+      "hex": "a201ac0150101112131415161718191a1b1c1d1e1f0250202122232425262728292a2b2c2d2e2f03f604f60501065820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0701085820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f095820404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f0a5820606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f0b010c5840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0281a60150101112131415161718191a1b1c1d1e1f0250202122232425262728292a2b2c2d2e2f0350303132333435363738393a3b3c3d3e3f04674143434f554e5405441d1e1f200601"
+    },
+    {
+      "name": "BundleExpected, the three zeros before GENESIS",
+      "record": "BundleExpected",
+      "value": {
+        "root_generation": 0,
+        "registry_version": 0,
+        "config_version": 0
+      },
+      "hex": "a3010002000300"
+    },
+    {
+      "name": "BundleDeletion, vault deletion (vault_id present)",
+      "record": "BundleDeletion",
+      "value": {
+        "vault_id": "101112131415161718191a1b1c1d1e1f",
+        "nonce": "202122232425262728292a2b2c2d2e2f",
+        "signature": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+      },
+      "hex": "a30150101112131415161718191a1b1c1d1e1f0250202122232425262728292a2b2c2d2e2f035840404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+    },
+    {
+      "name": "BundleDeletion, account deletion (vault_id omitted, never null)",
+      "record": "BundleDeletion",
+      "value": {
+        "nonce": "202122232425262728292a2b2c2d2e2f",
+        "signature": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+      },
+      "hex": "a20250202122232425262728292a2b2c2d2e2f035840404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+    },
+    {
+      "name": "SecurityBundle, CREATE_ACCOUNT",
+      "record": "SecurityBundle",
+      "value": {
+        "operation_type": "CREATE_ACCOUNT",
+        "root_transition": {
+          "account_id": "000102030405060708090a0b0c0d0e0f",
+          "transition_type": "GENESIS",
+          "old_root_hash": null,
+          "new_root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+          "new_root_generation": 1,
+          "signatures": [
+            [
+              2,
+              "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+            ],
+            [
+              4,
+              "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+            ]
+          ]
+        },
+        "root_descriptor": {
+          "account_id": "000102030405060708090a0b0c0d0e0f",
+          "root_generation": 1,
+          "account_encryption_public_key": "01020304",
+          "account_signing_public_key": "05060708",
+          "recovery_encryption_public_key": "090a0b0c",
+          "recovery_authority_public_key": "0d0e0f10",
+          "previous_root_hash": null,
+          "crypto_version": 1
+        },
+        "registry": {
+          "account_id": "000102030405060708090a0b0c0d0e0f",
+          "registry_version": 2,
+          "previous_registry_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+          "root_generation": 1,
+          "recipients": [
+            {
+              "recipient_id": "404142434445464748494a4b4c4d4e4f",
+              "type": "TRUSTED_BROWSER",
+              "public_key": "292a2b2c",
+              "label": "Laptop",
+              "status": "ACTIVE",
+              "added_version": 2,
+              "revoked_version": null
+            }
+          ],
+          "signature": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+        },
+        "profile": {
+          "account_id": "000102030405060708090a0b0c0d0e0f",
+          "kdf_salt": "101112131415161718191a1b1c1d1e1f",
+          "argon2_params": {
+            "memory_kib": 65536,
+            "iterations": 3,
+            "parallelism": 4,
+            "version": 1
+          },
+          "wrapped_account_encryption_key": {
+            "key_role": "ACCOUNT_ENCRYPTION",
+            "blob": "15161718"
+          },
+          "wrapped_account_signing_key": {
+            "key_role": "ACCOUNT_SIGNING",
+            "blob": "191a1b1c"
+          },
+          "config_version": 7,
+          "config_blob": "11121314"
+        },
+        "epochs": [
+          {
+            "descriptor": {
+              "vault_id": "101112131415161718191a1b1c1d1e1f",
+              "epoch_id": "202122232425262728292a2b2c2d2e2f",
+              "previous_epoch_id": null,
+              "previous_descriptor_hash": null,
+              "root_generation": 1,
+              "root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+              "registry_version": 1,
+              "registry_hash": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+              "epoch_commitment": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+              "envelope_set_hash": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+              "crypto_version": 1,
+              "signature": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+            },
+            "envelopes": [
+              {
+                "vault_id": "101112131415161718191a1b1c1d1e1f",
+                "epoch_id": "202122232425262728292a2b2c2d2e2f",
+                "recipient_id": "303132333435363738393a3b3c3d3e3f",
+                "recipient_type": "ACCOUNT",
+                "ciphertext": "1d1e1f20",
+                "algorithm_version": 1
+              }
+            ]
+          }
+        ],
+        "expected": {
+          "root_generation": 0,
+          "registry_version": 0,
+          "config_version": 0
+        },
+        "bundle_id": "505152535455565758595a5b5c5d5e5f"
+      },
+      "hex": "a8016e4352454154455f4143434f554e5402a60150000102030405060708090a0b0c0d0e0f026747454e4553495303f6045820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0501068282025840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f82045840404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f03a80150000102030405060708090a0b0c0d0e0f02010344010203040444050607080544090a0b0c06440d0e0f1007f6080104a60150000102030405060708090a0b0c0d0e0f0202035820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f04010581a70150404142434445464748494a4b4c4d4e4f026f545255535445445f42524f575345520344292a2b2c04664c6170746f700566414354495645060207f6065840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f05a70150000102030405060708090a0b0c0d0e0f0250101112131415161718191a1b1c1d1e1f03a4011a0001000002030304040104a201724143434f554e545f454e4352595054494f4e02441516171805a2016f4143434f554e545f5349474e494e470244191a1b1c06070744111213140981a201ac0150101112131415161718191a1b1c1d1e1f0250202122232425262728292a2b2c2d2e2f03f604f60501065820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0701085820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f095820404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f0a5820606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f0b010c5840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0281a60150101112131415161718191a1b1c1d1e1f0250202122232425262728292a2b2c2d2e2f0350303132333435363738393a3b3c3d3e3f04674143434f554e5405441d1e1f2006010ba30100020003000d50505152535455565758595a5b5c5d5e5f"
+    },
+    {
+      "name": "SecurityBundle, DELETE_ACCOUNT (every non-applicable field omitted)",
+      "record": "SecurityBundle",
+      "value": {
+        "operation_type": "DELETE_ACCOUNT",
+        "expected": {
+          "root_generation": 3,
+          "registry_version": 4,
+          "config_version": 5
+        },
+        "deletion": {
+          "nonce": "202122232425262728292a2b2c2d2e2f",
+          "signature": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+        },
+        "bundle_id": "505152535455565758595a5b5c5d5e5f"
+      },
+      "hex": "a4016e44454c4554455f4143434f554e540ba30103020403050ca20250202122232425262728292a2b2c2d2e2f035840404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f0d50505152535455565758595a5b5c5d5e5f"
+    },
+    {
+      "name": "SecurityBundle, ENROLL_CLIENT with an empty applicable collection",
+      "record": "SecurityBundle",
+      "value": {
+        "operation_type": "ENROLL_CLIENT",
+        "registry": {
+          "account_id": "000102030405060708090a0b0c0d0e0f",
+          "registry_version": 2,
+          "previous_registry_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+          "root_generation": 1,
+          "recipients": [
+            {
+              "recipient_id": "404142434445464748494a4b4c4d4e4f",
+              "type": "TRUSTED_BROWSER",
+              "public_key": "292a2b2c",
+              "label": "Laptop",
+              "status": "ACTIVE",
+              "added_version": 2,
+              "revoked_version": null
+            }
+          ],
+          "signature": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+        },
+        "config_blob": "11121314",
+        "config_version": 8,
+        "coverage_envelopes": [],
+        "expected": {
+          "root_generation": 1,
+          "registry_version": 1,
+          "config_version": 7
+        },
+        "bundle_id": "505152535455565758595a5b5c5d5e5f"
+      },
+      "hex": "a7016d454e524f4c4c5f434c49454e5404a60150000102030405060708090a0b0c0d0e0f0202035820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f04010581a70150404142434445464748494a4b4c4d4e4f026f545255535445445f42524f575345520344292a2b2c04664c6170746f700566414354495645060207f6065840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f07441112131408080a800ba30101020103070d50505152535455565758595a5b5c5d5e5f"
+    },
+    {
+      "name": "EscrowSlot, UNLOCK (no payload_blob)",
+      "record": "EscrowSlot",
+      "value": {
+        "slot": "UNLOCK",
+        "key_id": "101112131415161718191a1b1c1d1e1f",
+        "wrapped_key": "d0d1d2d3"
+      },
+      "hex": "a30166554e4c4f434b0250101112131415161718191a1b1c1d1e1f0344d0d1d2d3"
+    },
+    {
+      "name": "EscrowSlot, RECOVERY with payload_blob",
+      "record": "EscrowSlot",
+      "value": {
+        "slot": "RECOVERY",
+        "key_id": "101112131415161718191a1b1c1d1e1f",
+        "wrapped_key": "d4d5d6d7",
+        "payload_blob": "e0e1e2e3e4"
+      },
+      "hex": "a401685245434f564552590250101112131415161718191a1b1c1d1e1f0344d4d5d6d70445e0e1e2e3e4"
+    },
+    {
+      "name": "EscrowedRecoveryKeys",
+      "record": "EscrowedRecoveryKeys",
+      "value": {
+        "recovery_encryption_private_key": "2122232425",
+        "recovery_authority_private_key": "262728"
+      },
+      "hex": "a2014521222324250243262728"
+    },
+    {
+      "name": "EscrowBlob, both slots (CREATE_ACCOUNT, SWITCH_TO_MANAGED)",
+      "record": "EscrowBlob",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "unlock": {
+          "slot": "UNLOCK",
+          "key_id": "101112131415161718191a1b1c1d1e1f",
+          "wrapped_key": "d0d1d2d3"
+        },
+        "recovery": {
+          "slot": "RECOVERY",
+          "key_id": "101112131415161718191a1b1c1d1e1f",
+          "wrapped_key": "d4d5d6d7",
+          "payload_blob": "e0e1e2e3e4"
+        }
+      },
+      "hex": "a30150000102030405060708090a0b0c0d0e0f02a30166554e4c4f434b0250101112131415161718191a1b1c1d1e1f0344d0d1d2d303a401685245434f564552590250101112131415161718191a1b1c1d1e1f0344d4d5d6d70445e0e1e2e3e4"
+    },
+    {
+      "name": "EscrowBlob, only the unlock slot (Managed RECOVERY_RESET; recovery omitted, never null)",
+      "record": "EscrowBlob",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "unlock": {
+          "slot": "UNLOCK",
+          "key_id": "101112131415161718191a1b1c1d1e1f",
+          "wrapped_key": "d0d1d2d3"
+        }
+      },
+      "hex": "a20150000102030405060708090a0b0c0d0e0f02a30166554e4c4f434b0250101112131415161718191a1b1c1d1e1f0344d0d1d2d3"
+    },
+    {
+      "name": "EscrowRewrap, UNLOCK",
+      "record": "EscrowRewrap",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "slot": "UNLOCK",
+        "wrapped_key": "f0f1f2f3"
+      },
+      "hex": "a30150000102030405060708090a0b0c0d0e0f0266554e4c4f434b0344f0f1f2f3"
+    },
+    {
+      "name": "EscrowRewrap, RECOVERY with payload_blob",
+      "record": "EscrowRewrap",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "slot": "RECOVERY",
+        "wrapped_key": "f4f5f6f7",
+        "payload_blob": "e5e6e7"
+      },
+      "hex": "a40150000102030405060708090a0b0c0d0e0f02685245434f564552590344f4f5f6f70443e5e6e7"
+    },
+    {
+      "name": "AccountSecurityProfile, Managed (kdf_salt and argon2_params omitted)",
+      "record": "AccountSecurityProfile",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "wrapped_account_encryption_key": {
+          "key_role": "ACCOUNT_ENCRYPTION",
+          "blob": "15161718"
+        },
+        "wrapped_account_signing_key": {
+          "key_role": "ACCOUNT_SIGNING",
+          "blob": "191a1b1c"
+        },
+        "config_version": 7,
+        "config_blob": "11121314"
+      },
+      "hex": "a50150000102030405060708090a0b0c0d0e0f04a201724143434f554e545f454e4352595054494f4e02441516171805a2016f4143434f554e545f5349474e494e470244191a1b1c0607074411121314"
+    },
+    {
+      "name": "RootTransition, SWITCH_TO_MANAGED with roles 1 and 4",
+      "record": "RootTransition",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "transition_type": "SWITCH_TO_MANAGED",
+        "old_root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "new_root_hash": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+        "new_root_generation": 2,
+        "signatures": [
+          [
+            1,
+            "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+          ],
+          [
+            4,
+            "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+          ]
+        ]
+      },
+      "hex": "a60150000102030405060708090a0b0c0d0e0f02715357495443485f544f5f4d414e41474544035820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f045820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0502068282015840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f82045840404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+    },
+    {
+      "name": "RootTransition, SWITCH_TO_PRIVATE with roles 1, 2 and 4",
+      "record": "RootTransition",
+      "value": {
+        "account_id": "000102030405060708090a0b0c0d0e0f",
+        "transition_type": "SWITCH_TO_PRIVATE",
+        "old_root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "new_root_hash": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+        "new_root_generation": 3,
+        "signatures": [
+          [
+            1,
+            "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+          ],
+          [
+            2,
+            "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+          ],
+          [
+            4,
+            "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+          ]
+        ]
+      },
+      "hex": "a60150000102030405060708090a0b0c0d0e0f02715357495443485f544f5f50524956415445035820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f045820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f0503068382015840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f82025840404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f82045840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+    },
+    {
+      "name": "SecurityBundle, key 14 escrow with only the unlock slot (codec shape; the other RECOVERY_RESET parts left out)",
+      "record": "SecurityBundle",
+      "value": {
+        "operation_type": "RECOVERY_RESET",
+        "expected": {
+          "root_generation": 1,
+          "registry_version": 1,
+          "config_version": 7
+        },
+        "bundle_id": "505152535455565758595a5b5c5d5e5f",
+        "escrow": {
+          "account_id": "000102030405060708090a0b0c0d0e0f",
+          "unlock": {
+            "slot": "UNLOCK",
+            "key_id": "101112131415161718191a1b1c1d1e1f",
+            "wrapped_key": "d0d1d2d3"
+          }
+        }
+      },
+      "hex": "a4016e5245434f564552595f52455345540ba30101020103070d50505152535455565758595a5b5c5d5e5f0ea20150000102030405060708090a0b0c0d0e0f02a30166554e4c4f434b0250101112131415161718191a1b1c1d1e1f0344d0d1d2d3"
+    },
+    {
+      "name": "RecoveryRecord, RECOVERY_RESET request at generation 3",
+      "record": "RecoveryRecord",
+      "value": {
+        "request_id": "202122232425262728292a2b2c2d2e2f",
+        "kind": "RECOVERY_RESET",
+        "root_generation": 3,
+        "root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "signature": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+      },
+      "hex": "a50150202122232425262728292a2b2c2d2e2f026e5245434f564552595f52455345540303045820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f055840404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+    },
+    {
+      "name": "RecoveryRecord, SWITCH_TO_MANAGED at generation 24 (two-byte uint header)",
+      "record": "RecoveryRecord",
+      "value": {
+        "request_id": "202122232425262728292a2b2c2d2e2f",
+        "kind": "SWITCH_TO_MANAGED",
+        "root_generation": 24,
+        "root_hash": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+        "signature": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+      },
+      "hex": "a50150202122232425262728292a2b2c2d2e2f02715357495443485f544f5f4d414e41474544031818045820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f055840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+    },
+    {
+      "name": "SecurityBundle, RECOVERY_VETO (key 15 recovery, every other non-applicable field omitted)",
+      "record": "SecurityBundle",
+      "value": {
+        "operation_type": "RECOVERY_VETO",
+        "expected": {
+          "root_generation": 3,
+          "registry_version": 4,
+          "config_version": 5
+        },
+        "bundle_id": "505152535455565758595a5b5c5d5e5f",
+        "recovery": {
+          "request_id": "202122232425262728292a2b2c2d2e2f",
+          "kind": "RECOVERY_RESET",
+          "root_generation": 3,
+          "root_hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+          "signature": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+        }
+      },
+      "hex": "a4016d5245434f564552595f5645544f0ba30103020403050d50505152535455565758595a5b5c5d5e5f0fa50150202122232425262728292a2b2c2d2e2f026e5245434f564552595f52455345540303045820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f055840404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+    }
+  ]
+}

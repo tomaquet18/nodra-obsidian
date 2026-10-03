@@ -1,0 +1,42 @@
+{
+  "name": "@nodra/sync-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./test-support/fixtures": "./test/fixtures.ts",
+    "./test-support/memfs": "./test/support/memfs.ts",
+    "./test-support/fs-conformance": "./test/support/fs-conformance.ts",
+    "./test-support/tabs": "./test/support/tabs.ts",
+    "./test-support/shell": "./test/support/shell.ts",
+    "./test-support/bytes": "./test/support/bytes.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:sim": "vitest run -c vitest.sim.config.ts"
+  },
+  "dependencies": {
+    "@nodra/crypto": "workspace:*",
+    "@nodra/encoding": "workspace:*",
+    "@nodra/key-lifecycle": "workspace:*",
+    "@nodra/path-projection": "workspace:*",
+    "@nodra/protocol": "workspace:*",
+    "@nodra/sync-core": "workspace:*",
+    "@supabase/auth-js": "^2.117.2",
+    "dexie": "^4.4.6",
+    "jose": "^6.2.12",
+    "p-queue": "^9.3.3",
+    "uuid": "^14.0.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "fake-indexeddb": "^6.2.5",
+    "fast-check": "^4.10.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  },
+  "license": "MIT"
+}

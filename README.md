@@ -105,9 +105,10 @@ It sends no telemetry and no analytics.
 
 ## Source and license
 
-This plugin's own source code is MIT licensed (see `LICENSE`). The released `main.js` also bundles
-Nodra's sync and encryption libraries, which are built from a private repository, are not open source
-and are not covered by that license. The bundled `main.js` is not
+The plugin and the sync and encryption libraries bundled into the released `main.js` are MIT licensed
+(see `LICENSE`). Their source is published at
+[github.com/tomaquet18/nodra-obsidian](https://github.com/tomaquet18/nodra-obsidian), from which you can
+rebuild `main.js` and compare its SHA-256 with the release notes. The bundled `main.js` is not
 obfuscated, so you can inspect exactly what runs.
 
 ## Building
@@ -149,4 +150,35 @@ pnpm --filter @nodra/obsidian-plugin typecheck
 `obsidian` runtime so it runs in tests; `src/login.ts` and `src/auth-storage.ts` are the sign-in and
 where its session is kept; `src/panel.ts` decides what the Nodra panel shows (pure), `src/panel-view.ts`
 renders it and `styles.css` styles it; `src/main.ts` wires the plugin to Obsidian. Assumptions about Obsidian that the tests
-cannot verify are listed in `NOTES.md`.
+cannot verify are pinned by the fake adapter in `test/support/fake-obsidian.ts` and its tests in `test/fs.test.ts`.
+
+## About this repository
+
+This repository is generated from Nodra's private monorepo by an export script, and is not developed
+here directly. It contains:
+
+- the Obsidian plugin, at the root: `src/`, `styles.css`, `manifest.json`, `versions.json`, the build
+  configuration and the plugin's tests that run without the server;
+- the client packages bundled into `main.js`, under `packages/`: `sync-client`, `sync-core`, `crypto`,
+  `key-lifecycle`, `encoding`, `path-projection` and `protocol`, with their tests.
+
+Nodra's server (API, database and storage) is not included. The plugin tests that run against it stay in
+the private repository. Everything here is MIT licensed (see `LICENSE`).
+
+### Build and verify a release
+
+```sh
+pnpm install --frozen-lockfile && pnpm build
+sha256sum main.js
+```
+
+`pnpm build` is the release build. It reads `production.env`: the Nodra API, the Supabase project and its
+publishable key, all public (they are in every released `main.js`). The hash must equal the `main.js`
+SHA-256 in the release notes. The `verify` workflow (`.github/workflows/verify.yml`) typechecks, tests
+and builds every push and pull request, and for each release compares the built `main.js` with the
+release asset.
+
+### Issues and pull requests
+
+Issues are welcome. Pull requests are welcome too, but they are not merged here: changes are applied by
+hand to the private monorepo and arrive with the next export.

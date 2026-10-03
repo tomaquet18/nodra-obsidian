@@ -1,0 +1,3 @@
+# Vendored UCD files are hashed byte for byte; the generated module is compared byte for byte.
+ucd/** -text
+src/generated/** text eol=lf

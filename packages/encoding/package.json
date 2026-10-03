@@ -1,0 +1,29 @@
+{
+  "name": "@nodra/encoding",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./records": "./src/records.ts",
+    "./secret-key": "./src/secret-key.ts",
+    "./vectors/nce.json": "./vectors/nce.json",
+    "./vectors/records.json": "./vectors/records.json",
+    "./vectors/secret-key.json": "./vectors/secret-key.json"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@nodra/path-projection": "workspace:*",
+    "cborg": "6.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "fast-check": "^4.10.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  },
+  "license": "MIT"
+}

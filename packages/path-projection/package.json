@@ -1,0 +1,21 @@
+{
+  "name": "@nodra/path-projection",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "gen:unicode": "node scripts/gen-unicode.mjs"
+  },
+  "devDependencies": {
+    "fast-check": "^4.10.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1",
+    "@types/node": "^22.20.4"
+  },
+  "license": "MIT"
+}

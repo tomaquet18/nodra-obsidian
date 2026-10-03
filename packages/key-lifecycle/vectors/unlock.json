@@ -1,0 +1,59 @@
+{
+  "note": "Frozen two-secret-unlock vectors (§24) and the §23.3 context bytes of the four domains this slice uses. A second implementation must reproduce them (§23.3, §44.3 'kits y keysets generados en cada runtime de la matriz').",
+  "contexts": {
+    "accountKeywrapInfoHex": "82781a6e6f6472612f686b64662f6163636f756e742d6b65797772617001",
+    "accountConfigInfoHex": "8278196e6f6472612f686b64662f6163636f756e742d636f6e66696701",
+    "accountPrivateKeyAadHex": "84781d6e6f6472612f6161642f6163636f756e742d707269766174652d6b6579015011111111111111111111111111111111724143434f554e545f454e4352595054494f4e",
+    "accountConfigAadHex": "8478186e6f6472612f6161642f6163636f756e742d636f6e66696701501111111111111111111111111111111101"
+  },
+  "cases": [
+    {
+      "name": "ascii password",
+      "password": "correct horse battery staple",
+      "secretKeyText": "0440-Y5GX-4GNK-4EA0-8X75-AQ33-D9RQ-GZW6",
+      "secretKeyHex": "01080f161d242b323940474e555c636a71787f86",
+      "kdfSaltHex": "22222222222222222222222222222222",
+      "argon2Params": {
+        "memoryKib": 65536,
+        "iterations": 3,
+        "parallelism": 4,
+        "version": 1
+      },
+      "passwordKeyHex": "a24fe17dee0b9c0db616a8c4fdeb64483cca4fb7debcd42f9f6fdaca60f063e4",
+      "accountKeyWrapKeyHex": "f6dcbb18de7735241048985835e089f80456f246927e05806ef5ee19b6753347",
+      "accountConfigKeyHex": "66003fb899a888ac41a9cb93ca8c5c044428c617b2636cacaba195391b7cbef4"
+    },
+    {
+      "name": "non-ascii password (NFC)",
+      "password": "pássword ñ 日本語",
+      "secretKeyText": "0440-Y5GX-4GNK-4EA0-8X75-AQ33-D9RQ-GZW6",
+      "secretKeyHex": "01080f161d242b323940474e555c636a71787f86",
+      "kdfSaltHex": "33333333333333333333333333333333",
+      "argon2Params": {
+        "memoryKib": 65536,
+        "iterations": 3,
+        "parallelism": 4,
+        "version": 1
+      },
+      "passwordKeyHex": "8c83839e387309171866bfad0ab12f58cb6f9a58721e544f1d19821cd916726e",
+      "accountKeyWrapKeyHex": "10c8681913213eb0d4be31885fffc602ae3c34cae07ca4d71da3fc64e9895233",
+      "accountConfigKeyHex": "56d966c64ba3be747d56715e8302adedff074d2e0ef71530d04374553ac9ee5f"
+    },
+    {
+      "name": "the same password typed in NFD",
+      "password": "pássword ñ 日本語",
+      "secretKeyText": "0440-Y5GX-4GNK-4EA0-8X75-AQ33-D9RQ-GZW6",
+      "secretKeyHex": "01080f161d242b323940474e555c636a71787f86",
+      "kdfSaltHex": "33333333333333333333333333333333",
+      "argon2Params": {
+        "memoryKib": 65536,
+        "iterations": 3,
+        "parallelism": 4,
+        "version": 1
+      },
+      "passwordKeyHex": "8c83839e387309171866bfad0ab12f58cb6f9a58721e544f1d19821cd916726e",
+      "accountKeyWrapKeyHex": "10c8681913213eb0d4be31885fffc602ae3c34cae07ca4d71da3fc64e9895233",
+      "accountConfigKeyHex": "56d966c64ba3be747d56715e8302adedff074d2e0ef71530d04374553ac9ee5f"
+    }
+  ]
+}

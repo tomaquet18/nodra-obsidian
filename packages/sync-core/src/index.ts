@@ -1,0 +1,12 @@
+export type * from "./types.js";
+export { plan, resolveLocal, resolveLocalPaths } from "./plan.js";
+export type { ResolvedLocal } from "./plan.js";
+export { recordRemoteHead } from "./remote.js";
+export { merge3, isMergeablePath, type Merge3Result } from "./merge.js";
+export { bytesEqual, bytesStartWith } from "./bytes.js";
+export * from "./outbox.js";
+export * from "./journal.js";
+export * from "./events.js";
+export * from "./leader.js";
+export * from "./observe.js";
+export * from "./other-sync.js";

@@ -1,0 +1,1666 @@
+{
+  "description": "NCE (Nodra Canonical Encoding, spec §23.2/§23.3) test vectors. The hex was written by hand from RFC 8949, not produced by the encoder.",
+  "valueNotation": "int: decimal string (full 64-bit range); bytes: lowercase hex; text: JSON string; bool; null; array: list; map: list of [uint key, value] in insertion order, which may be unsorted on purpose",
+  "positive": [
+    {
+      "name": "uint 0",
+      "value": {
+        "int": "0"
+      },
+      "hex": "00"
+    },
+    {
+      "name": "uint 1",
+      "value": {
+        "int": "1"
+      },
+      "hex": "01"
+    },
+    {
+      "name": "uint 10",
+      "value": {
+        "int": "10"
+      },
+      "hex": "0a"
+    },
+    {
+      "name": "uint 23 (last immediate)",
+      "value": {
+        "int": "23"
+      },
+      "hex": "17"
+    },
+    {
+      "name": "uint 24 (first 1-byte)",
+      "value": {
+        "int": "24"
+      },
+      "hex": "1818"
+    },
+    {
+      "name": "uint 25",
+      "value": {
+        "int": "25"
+      },
+      "hex": "1819"
+    },
+    {
+      "name": "uint 100",
+      "value": {
+        "int": "100"
+      },
+      "hex": "1864"
+    },
+    {
+      "name": "uint 255",
+      "value": {
+        "int": "255"
+      },
+      "hex": "18ff"
+    },
+    {
+      "name": "uint 256 (first 2-byte)",
+      "value": {
+        "int": "256"
+      },
+      "hex": "190100"
+    },
+    {
+      "name": "uint 1000",
+      "value": {
+        "int": "1000"
+      },
+      "hex": "1903e8"
+    },
+    {
+      "name": "uint 65535",
+      "value": {
+        "int": "65535"
+      },
+      "hex": "19ffff"
+    },
+    {
+      "name": "uint 65536 (first 4-byte)",
+      "value": {
+        "int": "65536"
+      },
+      "hex": "1a00010000"
+    },
+    {
+      "name": "uint 1000000",
+      "value": {
+        "int": "1000000"
+      },
+      "hex": "1a000f4240"
+    },
+    {
+      "name": "uint 2^32-1",
+      "value": {
+        "int": "4294967295"
+      },
+      "hex": "1affffffff"
+    },
+    {
+      "name": "uint 2^32 (first 8-byte)",
+      "value": {
+        "int": "4294967296"
+      },
+      "hex": "1b0000000100000000"
+    },
+    {
+      "name": "uint 10^12",
+      "value": {
+        "int": "1000000000000"
+      },
+      "hex": "1b000000e8d4a51000"
+    },
+    {
+      "name": "timestamp ms (uint)",
+      "value": {
+        "int": "1726000000000"
+      },
+      "hex": "1b00000191dd9dec00"
+    },
+    {
+      "name": "uint 2^53-1 (max safe)",
+      "value": {
+        "int": "9007199254740991"
+      },
+      "hex": "1b001fffffffffffff"
+    },
+    {
+      "name": "uint 2^53 (bigint)",
+      "value": {
+        "int": "9007199254740992"
+      },
+      "hex": "1b0020000000000000"
+    },
+    {
+      "name": "uint 2^64-1 (max)",
+      "value": {
+        "int": "18446744073709551615"
+      },
+      "hex": "1bffffffffffffffff"
+    },
+    {
+      "name": "negint -1",
+      "value": {
+        "int": "-1"
+      },
+      "hex": "20"
+    },
+    {
+      "name": "negint -10",
+      "value": {
+        "int": "-10"
+      },
+      "hex": "29"
+    },
+    {
+      "name": "negint -24 (last immediate)",
+      "value": {
+        "int": "-24"
+      },
+      "hex": "37"
+    },
+    {
+      "name": "negint -25 (first 1-byte)",
+      "value": {
+        "int": "-25"
+      },
+      "hex": "3818"
+    },
+    {
+      "name": "negint -100",
+      "value": {
+        "int": "-100"
+      },
+      "hex": "3863"
+    },
+    {
+      "name": "negint -256",
+      "value": {
+        "int": "-256"
+      },
+      "hex": "38ff"
+    },
+    {
+      "name": "negint -257 (first 2-byte)",
+      "value": {
+        "int": "-257"
+      },
+      "hex": "390100"
+    },
+    {
+      "name": "negint -1000",
+      "value": {
+        "int": "-1000"
+      },
+      "hex": "3903e7"
+    },
+    {
+      "name": "negint -65536",
+      "value": {
+        "int": "-65536"
+      },
+      "hex": "39ffff"
+    },
+    {
+      "name": "negint -65537 (first 4-byte)",
+      "value": {
+        "int": "-65537"
+      },
+      "hex": "3a00010000"
+    },
+    {
+      "name": "negint -2^32",
+      "value": {
+        "int": "-4294967296"
+      },
+      "hex": "3affffffff"
+    },
+    {
+      "name": "negint -2^32-1 (first 8-byte)",
+      "value": {
+        "int": "-4294967297"
+      },
+      "hex": "3b0000000100000000"
+    },
+    {
+      "name": "negint -(2^53-1) (min safe)",
+      "value": {
+        "int": "-9007199254740991"
+      },
+      "hex": "3b001ffffffffffffe"
+    },
+    {
+      "name": "negint -2^53-1 (bigint)",
+      "value": {
+        "int": "-9007199254740993"
+      },
+      "hex": "3b0020000000000000"
+    },
+    {
+      "name": "negint -2^64 (min)",
+      "value": {
+        "int": "-18446744073709551616"
+      },
+      "hex": "3bffffffffffffffff"
+    },
+    {
+      "name": "false",
+      "value": {
+        "bool": false
+      },
+      "hex": "f4"
+    },
+    {
+      "name": "true",
+      "value": {
+        "bool": true
+      },
+      "hex": "f5"
+    },
+    {
+      "name": "null",
+      "value": {
+        "null": null
+      },
+      "hex": "f6"
+    },
+    {
+      "name": "bytes empty",
+      "value": {
+        "bytes": ""
+      },
+      "hex": "40"
+    },
+    {
+      "name": "bytes 4",
+      "value": {
+        "bytes": "01020304"
+      },
+      "hex": "4401020304"
+    },
+    {
+      "name": "bytes 16 (UUIDv7 id)",
+      "value": {
+        "bytes": "0190f1a2b3c47d5e8f60718293a4b5c6"
+      },
+      "hex": "500190f1a2b3c47d5e8f60718293a4b5c6"
+    },
+    {
+      "name": "bytes 23 (last immediate length)",
+      "value": {
+        "bytes": "000102030405060708090a0b0c0d0e0f10111213141516"
+      },
+      "hex": "57000102030405060708090a0b0c0d0e0f10111213141516"
+    },
+    {
+      "name": "bytes 24 (first 1-byte length)",
+      "value": {
+        "bytes": "000102030405060708090a0b0c0d0e0f1011121314151617"
+      },
+      "hex": "5818000102030405060708090a0b0c0d0e0f1011121314151617"
+    },
+    {
+      "name": "bytes 32 (hash)",
+      "value": {
+        "bytes": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      },
+      "hex": "5820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    },
+    {
+      "name": "bytes 64 (P1363 signature)",
+      "value": {
+        "bytes": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+      },
+      "hex": "5840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+    },
+    {
+      "name": "bytes 255",
+      "value": {
+        "bytes": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfe"
+      },
+      "hex": "58ff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfe"
+    },
+    {
+      "name": "bytes 256 (first 2-byte length)",
+      "value": {
+        "bytes": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+      },
+      "hex": "590100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+    },
+    {
+      "name": "text empty",
+      "value": {
+        "text": ""
+      },
+      "hex": "60"
+    },
+    {
+      "name": "text a",
+      "value": {
+        "text": "a"
+      },
+      "hex": "6161"
+    },
+    {
+      "name": "text IETF",
+      "value": {
+        "text": "IETF"
+      },
+      "hex": "6449455446"
+    },
+    {
+      "name": "text quote and backslash",
+      "value": {
+        "text": "\"\\"
+      },
+      "hex": "62225c"
+    },
+    {
+      "name": "text NUL char",
+      "value": {
+        "text": "\u0000"
+      },
+      "hex": "6100"
+    },
+    {
+      "name": "text u-umlaut (2-byte UTF-8)",
+      "value": {
+        "text": "ü"
+      },
+      "hex": "62c3bc"
+    },
+    {
+      "name": "text CJK (3-byte UTF-8)",
+      "value": {
+        "text": "水"
+      },
+      "hex": "63e6b0b4"
+    },
+    {
+      "name": "text U+10151 (4-byte UTF-8)",
+      "value": {
+        "text": "𐅑"
+      },
+      "hex": "64f0908591"
+    },
+    {
+      "name": "text emoji",
+      "value": {
+        "text": "😀"
+      },
+      "hex": "64f09f9880"
+    },
+    {
+      "name": "text precomposed e-acute (NFC)",
+      "value": {
+        "text": "é"
+      },
+      "hex": "62c3a9"
+    },
+    {
+      "name": "text Hangul syllable (NFC)",
+      "value": {
+        "text": "한"
+      },
+      "hex": "63ed959c"
+    },
+    {
+      "name": "text leading U+FEFF is kept",
+      "value": {
+        "text": "﻿x"
+      },
+      "hex": "64efbbbf78"
+    },
+    {
+      "name": "text 23 bytes",
+      "value": {
+        "text": "abcdefghijklmnopqrstuvw"
+      },
+      "hex": "776162636465666768696a6b6c6d6e6f7071727374757677"
+    },
+    {
+      "name": "text 24 bytes",
+      "value": {
+        "text": "abcdefghijklmnopqrstuvwx"
+      },
+      "hex": "78186162636465666768696a6b6c6d6e6f707172737475767778"
+    },
+    {
+      "name": "enum value GENESIS",
+      "value": {
+        "text": "GENESIS"
+      },
+      "hex": "6747454e45534953"
+    },
+    {
+      "name": "enum value RECOVERY_KIT_REPLACEMENT",
+      "value": {
+        "text": "RECOVERY_KIT_REPLACEMENT"
+      },
+      "hex": "78185245434f564552595f4b49545f5245504c4143454d454e54"
+    },
+    {
+      "name": "array empty",
+      "value": {
+        "array": []
+      },
+      "hex": "80"
+    },
+    {
+      "name": "array [1,2,3]",
+      "value": {
+        "array": [
+          {
+            "int": "1"
+          },
+          {
+            "int": "2"
+          },
+          {
+            "int": "3"
+          }
+        ]
+      },
+      "hex": "83010203"
+    },
+    {
+      "name": "array nested [1,[2,3],[4,5]]",
+      "value": {
+        "array": [
+          {
+            "int": "1"
+          },
+          {
+            "array": [
+              {
+                "int": "2"
+              },
+              {
+                "int": "3"
+              }
+            ]
+          },
+          {
+            "array": [
+              {
+                "int": "4"
+              },
+              {
+                "int": "5"
+              }
+            ]
+          }
+        ]
+      },
+      "hex": "8301820203820405"
+    },
+    {
+      "name": "array 23 elements",
+      "value": {
+        "array": [
+          {
+            "int": "1"
+          },
+          {
+            "int": "2"
+          },
+          {
+            "int": "3"
+          },
+          {
+            "int": "4"
+          },
+          {
+            "int": "5"
+          },
+          {
+            "int": "6"
+          },
+          {
+            "int": "7"
+          },
+          {
+            "int": "8"
+          },
+          {
+            "int": "9"
+          },
+          {
+            "int": "10"
+          },
+          {
+            "int": "11"
+          },
+          {
+            "int": "12"
+          },
+          {
+            "int": "13"
+          },
+          {
+            "int": "14"
+          },
+          {
+            "int": "15"
+          },
+          {
+            "int": "16"
+          },
+          {
+            "int": "17"
+          },
+          {
+            "int": "18"
+          },
+          {
+            "int": "19"
+          },
+          {
+            "int": "20"
+          },
+          {
+            "int": "21"
+          },
+          {
+            "int": "22"
+          },
+          {
+            "int": "23"
+          }
+        ]
+      },
+      "hex": "970102030405060708090a0b0c0d0e0f1011121314151617"
+    },
+    {
+      "name": "array 24 elements (first 1-byte length)",
+      "value": {
+        "array": [
+          {
+            "int": "1"
+          },
+          {
+            "int": "2"
+          },
+          {
+            "int": "3"
+          },
+          {
+            "int": "4"
+          },
+          {
+            "int": "5"
+          },
+          {
+            "int": "6"
+          },
+          {
+            "int": "7"
+          },
+          {
+            "int": "8"
+          },
+          {
+            "int": "9"
+          },
+          {
+            "int": "10"
+          },
+          {
+            "int": "11"
+          },
+          {
+            "int": "12"
+          },
+          {
+            "int": "13"
+          },
+          {
+            "int": "14"
+          },
+          {
+            "int": "15"
+          },
+          {
+            "int": "16"
+          },
+          {
+            "int": "17"
+          },
+          {
+            "int": "18"
+          },
+          {
+            "int": "19"
+          },
+          {
+            "int": "20"
+          },
+          {
+            "int": "21"
+          },
+          {
+            "int": "22"
+          },
+          {
+            "int": "23"
+          },
+          {
+            "int": "24"
+          }
+        ]
+      },
+      "hex": "98180102030405060708090a0b0c0d0e0f10111213141516171818"
+    },
+    {
+      "name": "array mixed",
+      "value": {
+        "array": [
+          {
+            "null": null
+          },
+          {
+            "bool": true
+          },
+          {
+            "bytes": "ff"
+          },
+          {
+            "text": "x"
+          },
+          {
+            "int": "-1"
+          }
+        ]
+      },
+      "hex": "85f6f541ff617820"
+    },
+    {
+      "name": "map empty",
+      "value": {
+        "map": []
+      },
+      "hex": "a0"
+    },
+    {
+      "name": "map {1:2,3:4}",
+      "value": {
+        "map": [
+          [
+            1,
+            {
+              "int": "2"
+            }
+          ],
+          [
+            3,
+            {
+              "int": "4"
+            }
+          ]
+        ]
+      },
+      "hex": "a201020304"
+    },
+    {
+      "name": "map key 0",
+      "value": {
+        "map": [
+          [
+            0,
+            {
+              "null": null
+            }
+          ]
+        ]
+      },
+      "hex": "a100f6"
+    },
+    {
+      "name": "map keys sorted independent of insertion order",
+      "value": {
+        "map": [
+          [
+            256,
+            {
+              "int": "1"
+            }
+          ],
+          [
+            1,
+            {
+              "int": "2"
+            }
+          ],
+          [
+            24,
+            {
+              "int": "3"
+            }
+          ],
+          [
+            23,
+            {
+              "int": "4"
+            }
+          ]
+        ]
+      },
+      "hex": "a40102170418180319010001"
+    },
+    {
+      "name": "map keys 10, 9, 0 inserted descending",
+      "value": {
+        "map": [
+          [
+            10,
+            {
+              "bool": true
+            }
+          ],
+          [
+            9,
+            {
+              "bool": false
+            }
+          ],
+          [
+            0,
+            {
+              "null": null
+            }
+          ]
+        ]
+      },
+      "hex": "a300f609f40af5"
+    },
+    {
+      "name": "map nested",
+      "value": {
+        "map": [
+          [
+            2,
+            {
+              "array": [
+                {
+                  "map": []
+                }
+              ]
+            }
+          ],
+          [
+            1,
+            {
+              "map": [
+                [
+                  2,
+                  {
+                    "array": []
+                  }
+                ]
+              ]
+            }
+          ]
+        ]
+      },
+      "hex": "a201a102800281a0"
+    },
+    {
+      "name": "map 24 entries (first 1-byte length)",
+      "value": {
+        "map": [
+          [
+            0,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            1,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            2,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            3,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            4,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            5,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            6,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            7,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            8,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            9,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            10,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            11,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            12,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            13,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            14,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            15,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            16,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            17,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            18,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            19,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            20,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            21,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            22,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            23,
+            {
+              "int": "0"
+            }
+          ]
+        ]
+      },
+      "hex": "b81800000100020003000400050006000700080009000a000b000c000d000e000f0010001100120013001400150016001700"
+    },
+    {
+      "name": "role collection [[1,sig],[4,sig]] (RootTransition signatures)",
+      "value": {
+        "array": [
+          {
+            "array": [
+              {
+                "int": "1"
+              },
+              {
+                "bytes": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+              }
+            ]
+          },
+          {
+            "array": [
+              {
+                "int": "4"
+              },
+              {
+                "bytes": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+              }
+            ]
+          }
+        ]
+      },
+      "hex": "8282015840000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f82045840404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f"
+    },
+    {
+      "name": "Revision Manifest shape (8), live",
+      "value": {
+        "map": [
+          [
+            1,
+            {
+              "bytes": "0190f1a2b3c47d5e8f60718293a4b5c6"
+            }
+          ],
+          [
+            2,
+            {
+              "bytes": "0190f1a2b3c47d5e8f60718293a4b5c7"
+            }
+          ],
+          [
+            3,
+            {
+              "null": null
+            }
+          ],
+          [
+            4,
+            {
+              "text": "notes/café.md"
+            }
+          ],
+          [
+            5,
+            {
+              "text": "text/markdown"
+            }
+          ],
+          [
+            6,
+            {
+              "int": "1726000000000"
+            }
+          ],
+          [
+            7,
+            {
+              "bytes": "0190f1a2b3c47d5e8f60718293a4b5c8"
+            }
+          ],
+          [
+            8,
+            {
+              "bytes": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+            }
+          ],
+          [
+            9,
+            {
+              "int": "1234"
+            }
+          ],
+          [
+            10,
+            {
+              "bool": false
+            }
+          ],
+          [
+            11,
+            {
+              "bytes": "0190f1a2b3c47d5e8f60718293a4b5c9"
+            }
+          ]
+        ]
+      },
+      "hex": "ab01500190f1a2b3c47d5e8f60718293a4b5c602500190f1a2b3c47d5e8f60718293a4b5c703f6046e6e6f7465732f636166c3a92e6d64056d746578742f6d61726b646f776e061b00000191dd9dec0007500190f1a2b3c47d5e8f60718293a4b5c8085820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f091904d20af40b500190f1a2b3c47d5e8f60718293a4b5c9"
+    },
+    {
+      "name": "Revision Manifest shape (8), deleted",
+      "value": {
+        "map": [
+          [
+            1,
+            {
+              "bytes": "0190f1a2b3c47d5e8f60718293a4b5c6"
+            }
+          ],
+          [
+            2,
+            {
+              "bytes": "0190f1a2b3c47d5e8f60718293a4b5c7"
+            }
+          ],
+          [
+            3,
+            {
+              "bytes": "0190f1a2b3c47d5e8f60718293a4b5c6"
+            }
+          ],
+          [
+            4,
+            {
+              "text": "a.md"
+            }
+          ],
+          [
+            5,
+            {
+              "text": "text/markdown"
+            }
+          ],
+          [
+            6,
+            {
+              "int": "0"
+            }
+          ],
+          [
+            7,
+            {
+              "null": null
+            }
+          ],
+          [
+            8,
+            {
+              "null": null
+            }
+          ],
+          [
+            9,
+            {
+              "null": null
+            }
+          ],
+          [
+            10,
+            {
+              "bool": true
+            }
+          ],
+          [
+            11,
+            {
+              "null": null
+            }
+          ]
+        ]
+      },
+      "hex": "ab01500190f1a2b3c47d5e8f60718293a4b5c602500190f1a2b3c47d5e8f60718293a4b5c703500190f1a2b3c47d5e8f60718293a4b5c60464612e6d64056d746578742f6d61726b646f776e060007f608f609f60af50bf6"
+    }
+  ],
+  "contexts": [
+    {
+      "name": "nodra/hkdf/account-keywrap (no fields)",
+      "domain": "nodra/hkdf/account-keywrap",
+      "fields": [],
+      "hex": "82781a6e6f6472612f686b64662f6163636f756e742d6b65797772617001"
+    },
+    {
+      "name": "nodra/hkdf/account-config (no fields)",
+      "domain": "nodra/hkdf/account-config",
+      "fields": [],
+      "hex": "8278196e6f6472612f686b64662f6163636f756e742d636f6e66696701"
+    },
+    {
+      "name": "nodra/hkdf/dedup (no fields)",
+      "domain": "nodra/hkdf/dedup",
+      "fields": [],
+      "hex": "82706e6f6472612f686b64662f646564757001"
+    },
+    {
+      "name": "nodra/hkdf/content (blob_id)",
+      "domain": "nodra/hkdf/content",
+      "fields": [
+        {
+          "bytes": "0190f1a2b3c47d5e8f60718293a4b5c8"
+        }
+      ],
+      "hex": "83726e6f6472612f686b64662f636f6e74656e7401500190f1a2b3c47d5e8f60718293a4b5c8"
+    },
+    {
+      "name": "nodra/aad/content (vault_id, epoch_id, blob_id)",
+      "domain": "nodra/aad/content",
+      "fields": [
+        {
+          "bytes": "0190f1a2b3c47d5e8f60718293a4b5c6"
+        },
+        {
+          "bytes": "0190f1a2b3c47d5e8f60718293a4b5c9"
+        },
+        {
+          "bytes": "0190f1a2b3c47d5e8f60718293a4b5c8"
+        }
+      ],
+      "hex": "85716e6f6472612f6161642f636f6e74656e7401500190f1a2b3c47d5e8f60718293a4b5c6500190f1a2b3c47d5e8f60718293a4b5c9500190f1a2b3c47d5e8f60718293a4b5c8"
+    },
+    {
+      "name": "nodra/envelope-set (vault_id, epoch_id, [[recipient_id, hash]...])",
+      "domain": "nodra/envelope-set",
+      "fields": [
+        {
+          "bytes": "0190f1a2b3c47d5e8f60718293a4b5c6"
+        },
+        {
+          "bytes": "0190f1a2b3c47d5e8f60718293a4b5c9"
+        },
+        {
+          "array": [
+            {
+              "array": [
+                {
+                  "bytes": "0190f1a2b3c47d5e8f60718293a4b5c7"
+                },
+                {
+                  "bytes": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+                }
+              ]
+            },
+            {
+              "array": [
+                {
+                  "bytes": "0190f1a2b3c47d5e8f60718293a4b5c8"
+                },
+                {
+                  "bytes": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "hex": "85726e6f6472612f656e76656c6f70652d73657401500190f1a2b3c47d5e8f60718293a4b5c6500190f1a2b3c47d5e8f60718293a4b5c98282500190f1a2b3c47d5e8f60718293a4b5c75820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f82500190f1a2b3c47d5e8f60718293a4b5c85820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    },
+    {
+      "name": "nodra/delete-account (operation_type, account_id, root_generation, nonce)",
+      "domain": "nodra/delete-account",
+      "fields": [
+        {
+          "text": "DELETE_ACCOUNT"
+        },
+        {
+          "bytes": "0190f1a2b3c47d5e8f60718293a4b5c6"
+        },
+        {
+          "int": "3"
+        },
+        {
+          "bytes": "000102030405060708090a0b0c0d0e0f"
+        }
+      ],
+      "hex": "86746e6f6472612f64656c6574652d6163636f756e74016e44454c4554455f4143434f554e54500190f1a2b3c47d5e8f60718293a4b5c60350000102030405060708090a0b0c0d0e0f"
+    },
+    {
+      "name": "nodra/escrow (account_id, key_id, slot)",
+      "domain": "nodra/escrow",
+      "fields": [
+        {
+          "bytes": "000102030405060708090a0b0c0d0e0f"
+        },
+        {
+          "bytes": "101112131415161718191a1b1c1d1e1f"
+        },
+        {
+          "text": "RECOVERY"
+        }
+      ],
+      "hex": "856c6e6f6472612f657363726f770150000102030405060708090a0b0c0d0e0f50101112131415161718191a1b1c1d1e1f685245434f56455259"
+    },
+    {
+      "name": "nodra/escrow-rewrap (account_id, SHA-256(ephemeral SPKI), slot)",
+      "domain": "nodra/escrow-rewrap",
+      "fields": [
+        {
+          "bytes": "000102030405060708090a0b0c0d0e0f"
+        },
+        {
+          "bytes": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+        },
+        {
+          "text": "UNLOCK"
+        }
+      ],
+      "hex": "85736e6f6472612f657363726f772d7265777261700150000102030405060708090a0b0c0d0e0f5820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f66554e4c4f434b"
+    },
+    {
+      "name": "nodra/recovery-request (operation_type, account_id, request_id, kind, root_generation, root_hash)",
+      "domain": "nodra/recovery-request",
+      "fields": [
+        {
+          "text": "RECOVERY_VETO"
+        },
+        {
+          "bytes": "000102030405060708090a0b0c0d0e0f"
+        },
+        {
+          "bytes": "0190f1a2b3c47d5e8f60718293a4b5c6"
+        },
+        {
+          "text": "RECOVERY_KIT_REPLACEMENT"
+        },
+        {
+          "int": "2"
+        },
+        {
+          "bytes": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        }
+      ],
+      "hex": "88766e6f6472612f7265636f766572792d72657175657374016d5245434f564552595f5645544f50000102030405060708090a0b0c0d0e0f500190f1a2b3c47d5e8f60718293a4b5c678185245434f564552595f4b49545f5245504c4143454d454e54025820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    }
+  ],
+  "negative": [
+    {
+      "name": "empty input",
+      "hex": "",
+      "error": "MALFORMED"
+    },
+    {
+      "name": "truncated uint16",
+      "hex": "1901",
+      "error": "MALFORMED"
+    },
+    {
+      "name": "truncated bytes",
+      "hex": "4201",
+      "error": "MALFORMED"
+    },
+    {
+      "name": "truncated array",
+      "hex": "8201",
+      "error": "MALFORMED"
+    },
+    {
+      "name": "truncated map value",
+      "hex": "a101",
+      "error": "MALFORMED"
+    },
+    {
+      "name": "reserved additional info 28",
+      "hex": "1c",
+      "error": "MALFORMED"
+    },
+    {
+      "name": "reserved additional info 30 in bytes",
+      "hex": "5e",
+      "error": "MALFORMED"
+    },
+    {
+      "name": "reserved major 7 info 28",
+      "hex": "fc",
+      "error": "MALFORMED"
+    },
+    {
+      "name": "trailing byte",
+      "hex": "0000",
+      "error": "TRAILING_BYTES"
+    },
+    {
+      "name": "two values",
+      "hex": "f6f6",
+      "error": "TRAILING_BYTES"
+    },
+    {
+      "name": "map then byte",
+      "hex": "a000",
+      "error": "TRAILING_BYTES"
+    },
+    {
+      "name": "uint 0 in 1 extra byte",
+      "hex": "1800",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "uint 23 in 1 extra byte",
+      "hex": "1817",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "uint 255 in 2 bytes",
+      "hex": "1900ff",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "uint 65535 in 4 bytes",
+      "hex": "1a0000ffff",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "uint 2^32-1 in 8 bytes",
+      "hex": "1b00000000ffffffff",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "negint -1 in 1 extra byte",
+      "hex": "3800",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "bytes length 0 in 1 extra byte",
+      "hex": "5800",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "bytes length 1 in 2 bytes",
+      "hex": "59000100",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "text length 1 in 1 extra byte",
+      "hex": "780161",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "array length 0 in 1 extra byte",
+      "hex": "9800",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "map length 0 in 1 extra byte",
+      "hex": "b800",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "nested non-minimal uint",
+      "hex": "811800",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "map key non-minimal",
+      "hex": "a1180100",
+      "error": "NON_MINIMAL"
+    },
+    {
+      "name": "indefinite bytes",
+      "hex": "5f4101ff",
+      "error": "INDEFINITE_LENGTH"
+    },
+    {
+      "name": "indefinite text",
+      "hex": "7f6161ff",
+      "error": "INDEFINITE_LENGTH"
+    },
+    {
+      "name": "indefinite array",
+      "hex": "9f01ff",
+      "error": "INDEFINITE_LENGTH"
+    },
+    {
+      "name": "indefinite map",
+      "hex": "bf0101ff",
+      "error": "INDEFINITE_LENGTH"
+    },
+    {
+      "name": "lone break",
+      "hex": "ff",
+      "error": "INDEFINITE_LENGTH"
+    },
+    {
+      "name": "break inside definite array",
+      "hex": "81ff",
+      "error": "INDEFINITE_LENGTH"
+    },
+    {
+      "name": "half float 1.0",
+      "hex": "f93c00",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "half float 0.0",
+      "hex": "f90000",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "half float NaN",
+      "hex": "f97e00",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "single float 1.0",
+      "hex": "fa3f800000",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "double float 1.0",
+      "hex": "fb3ff0000000000000",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "double float 1.5",
+      "hex": "fb3ff8000000000000",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "tag 1 epoch time",
+      "hex": "c11a514b67b0",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "tag 0 date string",
+      "hex": "c06474657374",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "tag 2 bignum",
+      "hex": "c249010000000000000000",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "tag 37 UUID",
+      "hex": "d825500190f1a2b3c47d5e8f60718293a4b5c6",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "tag 55799 self-describe",
+      "hex": "d9d9f7f6",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "undefined",
+      "hex": "f7",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "simple(0)",
+      "hex": "e0",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "simple(16)",
+      "hex": "f0",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "simple(32) two-byte",
+      "hex": "f820",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "simple(255) two-byte",
+      "hex": "f8ff",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "float nested in array",
+      "hex": "82f6f93c00",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "float as map value",
+      "hex": "a101f93c00",
+      "error": "FORBIDDEN_TYPE"
+    },
+    {
+      "name": "invalid UTF-8 0xff",
+      "hex": "61ff",
+      "error": "INVALID_UTF8"
+    },
+    {
+      "name": "invalid UTF-8 lone continuation",
+      "hex": "6180",
+      "error": "INVALID_UTF8"
+    },
+    {
+      "name": "invalid UTF-8 truncated sequence",
+      "hex": "62c328",
+      "error": "INVALID_UTF8"
+    },
+    {
+      "name": "overlong UTF-8 of '/'",
+      "hex": "62c0af",
+      "error": "INVALID_UTF8"
+    },
+    {
+      "name": "UTF-8 encoded surrogate U+D800",
+      "hex": "63eda080",
+      "error": "INVALID_UTF8"
+    },
+    {
+      "name": "code point above U+10FFFF",
+      "hex": "64f4908080",
+      "error": "INVALID_UTF8"
+    },
+    {
+      "name": "text e + combining acute (NFD)",
+      "hex": "6365cc81",
+      "error": "NOT_NFC"
+    },
+    {
+      "name": "text ANGSTROM SIGN U+212B",
+      "hex": "63e284ab",
+      "error": "NOT_NFC"
+    },
+    {
+      "name": "text Hangul jamo sequence (NFD of U+D55C)",
+      "hex": "69e18492e185a1e186ab",
+      "error": "NOT_NFC"
+    },
+    {
+      "name": "non-NFC map value",
+      "hex": "a1016365cc81",
+      "error": "NOT_NFC"
+    },
+    {
+      "name": "unsorted keys 2,1",
+      "hex": "a202000100",
+      "error": "UNSORTED_KEYS"
+    },
+    {
+      "name": "unsorted keys 24,23",
+      "hex": "a21818001700",
+      "error": "UNSORTED_KEYS"
+    },
+    {
+      "name": "unsorted keys 256,24",
+      "hex": "a219010000181800",
+      "error": "UNSORTED_KEYS"
+    },
+    {
+      "name": "unsorted keys in nested map",
+      "hex": "81a202000100",
+      "error": "UNSORTED_KEYS"
+    },
+    {
+      "name": "duplicate key",
+      "hex": "a201000101",
+      "error": "DUPLICATE_KEY"
+    },
+    {
+      "name": "duplicate key non-adjacent",
+      "hex": "a3010002000101",
+      "error": "DUPLICATE_KEY"
+    },
+    {
+      "name": "negint key",
+      "hex": "a12000",
+      "error": "KEY_NOT_UINT"
+    },
+    {
+      "name": "text key",
+      "hex": "a1616100",
+      "error": "KEY_NOT_UINT"
+    },
+    {
+      "name": "bytes key",
+      "hex": "a1410000",
+      "error": "KEY_NOT_UINT"
+    },
+    {
+      "name": "false key",
+      "hex": "a1f400",
+      "error": "KEY_NOT_UINT"
+    },
+    {
+      "name": "null key",
+      "hex": "a1f600",
+      "error": "KEY_NOT_UINT"
+    },
+    {
+      "name": "array key",
+      "hex": "a18000",
+      "error": "KEY_NOT_UINT"
+    },
+    {
+      "name": "map key",
+      "hex": "a1a000",
+      "error": "KEY_NOT_UINT"
+    },
+    {
+      "name": "negint 8-byte key",
+      "hex": "a13bffffffffffffffff00",
+      "error": "KEY_NOT_UINT"
+    },
+    {
+      "name": "uint key 2^53 (above safe integer, restriction Q160)",
+      "hex": "a11b002000000000000000",
+      "error": "KEY_OUT_OF_RANGE"
+    }
+  ]
+}

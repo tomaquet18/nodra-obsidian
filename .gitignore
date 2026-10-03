@@ -1,1 +1,5 @@
+node_modules/
 main.js
+.env*
+coverage/
+*.tsbuildinfo

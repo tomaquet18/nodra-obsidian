@@ -35,6 +35,8 @@ export interface PanelActions {
   turnOffObsidianSync(): void;
   /** §20.2 at run time (NOTES question 419): "I removed the other tool, resume". */
   resumeAfterOtherTool(): void;
+  /** Nodra Web in the browser, where the account is set up (§35.2). */
+  openWeb(): void;
 }
 
 export interface PanelSource {
@@ -124,6 +126,13 @@ export class NodraPanelView extends ItemView {
         new Setting(el).addButton((b) => b.setButtonText("Try again").setCta().onClick(() => a.restart()));
         return this.account(el, s.email, null, false);
       }
+      case "not-set-up":
+        this.status(el, "is-attention", s.title);
+        el.createEl("p", { text: s.explanation });
+        new Setting(el).addButton((b) => b.setButtonText("Open Nodra on the web").setCta().onClick(() => a.openWeb()));
+        // restart asks the root chain once more (main.ts checkProtection).
+        new Setting(el).addButton((b) => b.setButtonText("Check again").onClick(() => a.restart()));
+        return this.account(el, s.email, null, false);
       case "connected": {
         this.status(el, `is-${s.sync}`, SYNC_TEXT[s.sync]);
         if (s.lastSynced !== null) el.createEl("p", { text: `Last synced ${s.lastSynced}`, cls: "nodra-panel-muted" });

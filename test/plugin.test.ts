@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { InstallationOtherAccountError, SessionError } from "@nodra/sync-client";
+import { InstallationOtherAccountError, SessionError, TrustError } from "@nodra/sync-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SyncDeps, SyncStatus } from "../src/controller.js";
 import { VIEW_TYPE_NODRA } from "../src/panel-view.js";
@@ -334,6 +334,75 @@ describe("§3.7 Continue with GitHub from the panel", () => {
     await handler(plugin)(stale);
     await until(() => Notice.shown.length > before + 2, "the third notice");
     expect(a.adoptSession).not.toHaveBeenCalled();
+  });
+});
+
+// The bug reported from production (plugin 0.6.1): signed in to an account never set up on the web (no
+// root chain), the panel said "Your account could not be checked: TrustError: CHAIN_INVALID: root: EMPTY_CHAIN".
+describe("signed in to an account not set up on the web yet", () => {
+  const NOT_SET_UP = "This Nodra account has not been set up yet. Open Nodra on the web, sign in and choose how your account is protected; then come back and select Check again.";
+  const noRoot = () => new TrustError("NO_ACCOUNT_ROOT", "this account has no root yet (§35.2)");
+
+  it("the panel says to finish it in Nodra Web, with no error text; Check again after the setup connects as usual", async () => {
+    m.trustedPlugin.mockResolvedValue({ replica: null, vault: { kind: "NONE" } });
+    m.pluginProtection.mockRejectedValue(noRoot());
+    const opened = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { fake } = await load(auth(true));
+    button_open();
+    await until(() => panels().length === 1 && panelEl().textContent!.includes("Finish setting up your account"), "the not-set-up screen");
+    const text = panelEl().textContent!;
+    expect(text).toContain(NOT_SET_UP);
+    for (const leaked of ["could not be checked", "TrustError", "NO_ACCOUNT_ROOT", "CHAIN_INVALID", "EMPTY_CHAIN"]) expect(text).not.toContain(leaked);
+    expect(hasButton("Connect this vault")).toBe(false);
+    expect(fake.statusBar[0]!.textContent).toBe("Nodra: needs attention");
+    button("Open Nodra on the web").click();
+    expect(opened).toHaveBeenCalledWith("https://app.nodranotes.com");
+    expect(m.enrollPlugin).not.toHaveBeenCalled();
+    expect(m.startSync).not.toHaveBeenCalled();
+
+    // Still not set up: Check again asks once more and shows the same screen.
+    const checks = m.pluginProtection.mock.calls.length;
+    button("Check again").click();
+    await until(() => m.pluginProtection.mock.calls.length === checks + 1 && hasButton("Check again"), "checked again");
+    expect(panelEl().textContent).toContain(NOT_SET_UP);
+
+    // Set up on the web meanwhile: Check again reaches the usual connect screen, and connecting syncs.
+    m.pluginProtection.mockResolvedValue({ mode: "MANAGED" });
+    m.trustedPlugin.mockResolvedValue({ replica: null, vault: { kind: "SYNC", vaultId: "v1", remember: true } });
+    button("Check again").click();
+    await until(() => hasButton("Connect this vault"), "the connect screen");
+    expect(panelEl().textContent).toContain(`${EMAIL} · Managed`);
+    expect(panelEl().textContent).not.toContain(NOT_SET_UP);
+    controller();
+    m.trustedPlugin.mockResolvedValue({ replica: { auth: {}, vaultCrypto: {}, planLimits: {} }, vault: { kind: "SYNC", vaultId: "v1", remember: true } });
+    button("Connect this vault").click();
+    await until(() => m.startSync.mock.calls.length === 1, "sync started");
+    expect(m.enrollPlugin).toHaveBeenCalledTimes(1);
+    opened.mockRestore();
+  });
+
+  it("the Enroll command says the same in a notice, and enrolls nothing", async () => {
+    m.trustedPlugin.mockResolvedValue({ replica: null, vault: { kind: "NONE" } });
+    m.pluginProtection.mockRejectedValue(noRoot());
+    const { fake } = await load(auth(true));
+    await until(() => m.pluginProtection.mock.calls.length > 0, "the account checked");
+    const notices = Notice.shown.length;
+    await (fake as unknown as { commands: { id: string; callback: () => unknown }[] }).commands.find((c) => c.id === "enroll")!.callback();
+    await until(() => Notice.shown.length > notices, "a notice");
+    const shown = Notice.shown.slice(notices).join(" ");
+    expect(shown).toContain(NOT_SET_UP);
+    expect(shown).not.toContain("TrustError");
+    expect(m.enrollPlugin).not.toHaveBeenCalled();
+  });
+
+  it("a real CHAIN_INVALID (a server rolling back a pinned account) is still shown as it is", async () => {
+    m.trustedPlugin.mockResolvedValue({ replica: null, vault: { kind: "NONE" } });
+    m.pluginProtection.mockRejectedValue(new TrustError("CHAIN_INVALID", "root: EMPTY_CHAIN"));
+    await load(auth(true));
+    button_open();
+    await until(() => panels().length === 1 && panelEl().textContent!.includes("Your account could not be checked"), "the check failure");
+    expect(panelEl().textContent).toContain("CHAIN_INVALID: root: EMPTY_CHAIN");
+    expect(panelEl().textContent).not.toContain("Finish setting up your account");
   });
 });
 

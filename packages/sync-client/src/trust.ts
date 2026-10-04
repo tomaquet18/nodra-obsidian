@@ -147,6 +147,19 @@ export class TrustError extends Error {
   }
 }
 
+/** The server serves no root for the account: NO_ACCOUNT_ROOT without pins; with them, a rollback (§28.3). */
+export function noAccountRoot(pins: AccountPins | undefined): TrustError {
+  if (pins === undefined) return new TrustError("NO_ACCOUNT_ROOT", "this account has no root yet (§35.2)");
+  return new TrustError("CHAIN_INVALID", `root: the server serves none, and this installation pinned generation ${pins.rootGeneration} (§28.3)`);
+}
+
+/**
+ * The account has not been set up (§35.2 never ran: no GENESIS), and this installation holds no pins
+ * for it. The user finishes it in Nodra Web; nothing here creates an account. Never true when the
+ * installation holds this account's pins (§28.3): then a missing root is CHAIN_INVALID.
+ */
+export const accountNotSetUp = (e: unknown): boolean => e instanceof TrustError && e.code === "NO_ACCOUNT_ROOT";
+
 /** The recipient types a client can be (§29). ACCOUNT and RECOVERY live in the root, not here. */
 export type ClientRecipientType = "PLUGIN_INSTALLATION" | "TRUSTED_BROWSER";
 
@@ -421,6 +434,8 @@ export function checkAgainstConfig(
 /** §28 from GENESIS, through this installation's root pin when it holds one (§28.3), and the mode it sets (§3.6). */
 export async function provedRoot(transport: AccountTransport, account: Uint8Array, pins: AccountPins | undefined) {
   const chain = await transport.rootChain();
+  // §35.2 has not run (no GENESIS): only believable without pins; with them it is a rollback (§28.3).
+  if (chain.links.length === 0 && pins === undefined) throw noAccountRoot(pins);
   const links: RootChainLink[] = chain.links.map((l) => ({ transition: decodeRecord(ROOT_TRANSITION, fromHex(l.transition)), descriptor: decodeRecord(ROOT_DESCRIPTOR, fromHex(l.descriptor)) }));
   const rootPin = pins === undefined ? {} : { pin: { rootGeneration: pins.rootGeneration, rootHash: fromHex(pins.rootHash) } };
   const root = await verifyRootChain(links, { accountId: account, ...rootPin });
@@ -513,7 +528,7 @@ export async function proveAccount<U extends UnlockedAccount>(
 ): Promise<Unlocked<U>> {
   const account = uuidToBytes(accountId);
   const state = await transport.rootState();
-  if (state.profile === null || state.configBlob === null || state.configVersion === null) throw new TrustError("NO_ACCOUNT_ROOT", "this account has no root yet (§35.2)");
+  if (state.profile === null || state.configBlob === null || state.configVersion === null) throw noAccountRoot(pins);
   const parsed = parseAccountSecurityProfile(fromHex(state.profile));
   if (!parsed.ok) throw new TrustError("SERVER_REFUSED", parsed.failure.message);
   // The stored profile plus the config in force (§26): a config-only bundle installs only the latter.

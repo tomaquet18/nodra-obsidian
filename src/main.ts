@@ -1,6 +1,6 @@
 // First: zod is jitless before any schema exists (zod-jitless.ts).
 import "./zod-jitless.js";
-import type { AccountSecrets, LoginMethod } from "@nodra/sync-client";
+import { type AccountSecrets, type LoginMethod, accountNotSetUp } from "@nodra/sync-client";
 import { type App, type EventRef, FileSystemAdapter, Modal, Notice, Platform, Plugin, PluginSettingTab, Setting, TFile, type TAbstractFile } from "obsidian";
 import { v7 as uuidv7 } from "uuid";
 import { type SecretStore, pluginAuthStorage } from "./auth-storage.js";
@@ -32,7 +32,9 @@ import {
   type PanelFacts,
   type PluginPhase,
   type Protection,
+  ACCOUNT_NOT_SET_UP,
   OTHER_SYNC_MANUAL_STEPS,
+  WEB_URL,
   disconnectConfirmation,
   otherSyncConfirmation,
   panelState,
@@ -63,6 +65,9 @@ const FIRST_RUN_KEY = "nodra-panel-offered";
 /** §20.2: the other-sync-tool signals the user confirmed on this vault and device (NOTES question 416). */
 const OTHER_SYNC_CONFIRMED_KEY = "nodra-other-sync-confirmed";
 const SIGN_IN_FIRST = "Nodra: sign in first, from the Nodra panel.";
+
+/** An account read that failed, as a notice; an account not set up yet (§35.2) in plain words. */
+const accountNotice = (what: string, e: unknown) => new Notice(accountNotSetUp(e) ? `Nodra: ${ACCOUNT_NOT_SET_UP.explanation}` : `Nodra: ${what}: ${String(e)}`, 0);
 /**
  * How often the attachment folder setting is checked besides Obsidian's `config-changed` event, which is
  * internal (not in obsidian.d.ts) and may change: a check reads memory and stats one file, and writes
@@ -134,6 +139,7 @@ export default class NodraPlugin extends Plugin {
     confirmNoOtherSync: () => this.confirmNoOtherSyncDialog(),
     turnOffObsidianSync: () => void this.turnOffObsidianSync(),
     resumeAfterOtherTool: () => this.controller?.acknowledgeOtherSyncTool(),
+    openWeb: () => void window.open(WEB_URL),
   };
 
   override async onload(): Promise<void> {
@@ -485,13 +491,17 @@ export default class NodraPlugin extends Plugin {
     await this.restart();
   }
 
-  /** §3.6, once per login: Managed connects with the login alone, Private asks for the two secrets. */
+  /**
+   * §3.6, once per login: Managed connects with the login alone, Private asks for the two secrets. An
+   * account not set up yet (§35.2, and no pins here) is finished in Nodra Web: nothing is offered here.
+   */
   private async checkProtection(conn: Parameters<typeof pluginProtection>[0]): Promise<void> {
     if (this.protection !== null) return;
     try {
       this.protection = (await pluginProtection(conn)).mode;
     } catch (e) {
-      this.problem = `Your account could not be checked: ${String(e)}`;
+      if (accountNotSetUp(e) && this.phase.kind === "not-enrolled") return this.setPhase({ kind: "not-set-up" });
+      this.problem = accountNotSetUp(e) ? ACCOUNT_NOT_SET_UP.explanation : `Your account could not be checked: ${String(e)}`;
     }
     this.changed();
   }
@@ -570,7 +580,7 @@ export default class NodraPlugin extends Plugin {
     try {
       await this.enroll(secrets);
     } catch (e) {
-      return void new Notice(`Nodra: enrollment failed: ${String(e)}`, 0);
+      return void accountNotice("enrollment failed", e);
     }
     new Notice("Nodra: enrolled. Starting sync.");
     await this.restart();
@@ -592,7 +602,7 @@ export default class NodraPlugin extends Plugin {
     try {
       mode = (await pluginProtection(conn)).mode;
     } catch (e) {
-      return void new Notice(`Nodra: the account could not be verified: ${String(e)}`, 0);
+      return void accountNotice("the account could not be verified", e);
     }
     new SecretsModal(this.app, heading, text, action, mode === "PRIVATE", submit).open();
   }
@@ -612,7 +622,7 @@ export default class NodraPlugin extends Plugin {
     try {
       list = await pluginDevices(conn);
     } catch (e) {
-      return void new Notice(`Nodra: the device list could not be verified: ${String(e)}`, 0);
+      return void accountNotice("the device list could not be verified", e);
     }
     new DevicesModal(this.app, list, (device) =>
       void this.unlockDialog(`Revoke "${device.label}"`, "It stops syncing at once, and every vault gets a new key it cannot open. What it already downloaded stays on it.", "Revoke", async (secrets) => {
@@ -636,7 +646,7 @@ export default class NodraPlugin extends Plugin {
       if (limit !== null) return void new Notice(`Nodra: no new vault: ${limit}.`, 0);
       active = (await pluginDevices(conn)).filter((d) => d.status === "ACTIVE").length;
     } catch (e) {
-      return void new Notice(`Nodra: ${String(e)}`, 0);
+      return void accountNotice("no new vault", e);
     }
     await this.unlockDialog("Create a new Nodra vault", `Readable by the ${active} active device${active === 1 ? "" : "s"} of your account. This Obsidian vault keeps syncing to the vault it chose; another Obsidian vault can choose the new one.`, "Create", async (secrets) => {
       try {
@@ -656,7 +666,7 @@ export default class NodraPlugin extends Plugin {
     try {
       mode = (await pluginProtection(conn)).mode;
     } catch (e) {
-      return void new Notice(`Nodra: the account could not be verified: ${String(e)}`, 0);
+      return void accountNotice("the account could not be verified", e);
     }
     if (mode === "PRIVATE") return void new Notice("Nodra: this account is Private: it is recovered with its Recovery Kit, not with the login.", 0);
     new ConfirmModal(

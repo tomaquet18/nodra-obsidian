@@ -34,6 +34,12 @@ export function pendingRecoveryText(p: PendingRecoveryFacts, at: (ms: number) =>
 /** Where accounts are created (§35.2): the plugin creates none. */
 export const WEB_URL = "https://app.nodranotes.com";
 
+/** The account's first-time setup (§35.2) is done in Nodra Web: what the panel and the notices say. */
+export const ACCOUNT_NOT_SET_UP = {
+  title: "Finish setting up your account",
+  explanation: "This Nodra account has not been set up yet. Open Nodra on the web, sign in and choose how your account is protected; then come back and select Check again.",
+} as const;
+
 export type Protection = "MANAGED" | "PRIVATE";
 
 /** Where the plugin is (main.ts `restart`): what it found, never which step it is in. */
@@ -45,6 +51,8 @@ export type PluginPhase =
   | { readonly kind: "unreachable"; readonly detail: string }
   | { readonly kind: "login-unreadable"; readonly detail: string }
   | { readonly kind: "not-enrolled" }
+  /** Signed in to an account whose first-time setup (§35.2) never ran in Nodra Web: no root chain, and no pins here. */
+  | { readonly kind: "not-set-up" }
   /** §20.2: this installation holds another account's connection (NOTES question 413); its email when recorded. */
   | { readonly kind: "other-account"; readonly otherEmail: string | null }
   | { readonly kind: "no-vault" }
@@ -85,6 +93,7 @@ export type PanelState =
   | { readonly kind: "connect"; readonly email: string; readonly protection: Protection | null; readonly busy: boolean; readonly problem: string | null; readonly again: boolean }
   | { readonly kind: "choose-vault"; readonly email: string; readonly vaults: readonly string[] }
   | { readonly kind: "no-vault"; readonly email: string }
+  | { readonly kind: "not-set-up"; readonly email: string; readonly title: string; readonly explanation: string }
   | { readonly kind: "other-account"; readonly email: string; readonly title: string; readonly explanation: string; readonly busy: boolean; readonly problem: string | null }
   | {
       readonly kind: "other-sync-tool";
@@ -156,6 +165,8 @@ export function panelState(f: PanelFacts): PanelState {
       return attention("Sign-in unreadable", `The saved sign-in could not be read: ${sentence(p.detail)}`, SIGN_IN_AGAIN);
     case "not-enrolled":
       return connect(false);
+    case "not-set-up":
+      return { kind: "not-set-up", email, ...ACCOUNT_NOT_SET_UP };
     case "other-account":
       return { kind: "other-account", email, ...otherAccountText(p.otherEmail, email), busy: f.busy === "disconnect", problem: f.problem };
     case "no-vault":
@@ -267,13 +278,13 @@ const BAR: Record<SyncWord, string> = { synced: "synced", syncing: "syncing", pa
 
 /** The status bar item's text (clicking it opens the panel). */
 export function statusBarText(s: PanelState): string {
-  const word = s.kind === "loading" ? "starting" : s.kind === "signed-out" ? "signed out" : s.kind === "connected" ? BAR[s.sync] : s.kind === "attention" || s.kind === "other-account" || s.kind === "other-sync-tool" ? "needs attention" : "not connected";
+  const word = s.kind === "loading" ? "starting" : s.kind === "signed-out" ? "signed out" : s.kind === "connected" ? BAR[s.sync] : s.kind === "attention" || s.kind === "other-account" || s.kind === "other-sync-tool" || s.kind === "not-set-up" ? "needs attention" : "not connected";
   return `Nodra: ${word}`;
 }
 
 /** The status bar item's tooltip: the explanation behind the word. */
 export function statusBarTitle(s: PanelState): string {
-  if (s.kind === "attention" || s.kind === "other-account" || s.kind === "other-sync-tool") return `${s.title}. ${s.explanation}`;
+  if (s.kind === "attention" || s.kind === "other-account" || s.kind === "other-sync-tool" || s.kind === "not-set-up") return `${s.title}. ${s.explanation}`;
   if (s.kind === "connected") return [s.note, s.lastSynced === null ? null : `Last synced ${s.lastSynced}`].filter((x) => x !== null).join(" · ") || "Open the Nodra panel";
   return "Open the Nodra panel";
 }

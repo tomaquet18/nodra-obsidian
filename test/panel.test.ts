@@ -65,6 +65,16 @@ describe("signed in, this vault not connected", () => {
   });
 });
 
+describe("signed in to an account not set up yet (§35.2 never ran, so no root chain)", () => {
+  const explanation = "This Nodra account has not been set up yet. Open Nodra on the web, sign in and choose how your account is protected; then come back and select Check again.";
+  it("finish it in Nodra Web, then check again: no connect screen, no error text", () => {
+    const s = panelState(facts({ kind: "not-set-up" }, { protection: null }));
+    expect(s).toEqual({ kind: "not-set-up", email: "ana@example.test", title: "Finish setting up your account", explanation });
+    expect(statusBarText(s)).toBe("Nodra: needs attention");
+    expect(statusBarTitle(s)).toBe(`Finish setting up your account. ${explanation}`);
+  });
+});
+
 describe("starting", () => {
   it("before the first facts: a loading line", () => {
     expect(panelState(facts({ kind: "starting" }))).toMatchObject({ kind: "loading" });

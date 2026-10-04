@@ -24,7 +24,8 @@ Nodra's reseller; the plugin never asks for payment details.
 
 Everything is done from the **Nodra panel** in the right sidebar; no command is needed.
 
-1. Create your account at [app.nodranotes.com](https://app.nodranotes.com).
+1. Create your account at [app.nodranotes.com](https://app.nodranotes.com), and finish its setup there
+   (choose how your account is protected): the plugin connects only to an account that is set up.
 2. Install and enable the plugin (Settings → Community plugins). The Nodra panel opens by itself the
    first time. Later, open it with the **Nodra** button in the left ribbon or by clicking the Nodra
    item in the status bar.

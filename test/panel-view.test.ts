@@ -28,6 +28,7 @@ function actions(): PanelActions & { [K in keyof PanelActions]: ReturnType<typeo
     confirmNoOtherSync: vi.fn(),
     turnOffObsidianSync: vi.fn(),
     resumeAfterOtherTool: vi.fn(),
+    openWeb: vi.fn(),
   } as never;
 }
 
@@ -185,6 +186,22 @@ describe("connect this vault", () => {
     const p = await open({ ...signedIn, phase: phase({ kind: "not-enrolled" }) });
     p.button("Sign out").click();
     expect(p.a.signOut).toHaveBeenCalled();
+  });
+});
+
+describe("an account not set up yet (§35.2 never ran)", () => {
+  it("says so in plain words; Open Nodra on the web, Check again (a restart) and Sign out; nothing to connect", async () => {
+    const p = await open({ ...signedIn, protection: null, phase: phase({ kind: "not-set-up" }) });
+    expect(p.text()).toContain("Finish setting up your account");
+    expect(p.text()).toContain("This Nodra account has not been set up yet. Open Nodra on the web, sign in and choose how your account is protected; then come back and select Check again.");
+    expect(p.buttons().map((b) => b.textContent)).toEqual(["Open Nodra on the web", "Check again", "Sign out"]);
+    p.button("Open Nodra on the web").click();
+    expect(p.a.openWeb).toHaveBeenCalledTimes(1);
+    p.button("Check again").click();
+    expect(p.a.restart).toHaveBeenCalledTimes(1);
+    p.button("Sign out").click();
+    expect(p.a.signOut).toHaveBeenCalledTimes(1);
+    expect(p.a.connect).not.toHaveBeenCalled();
   });
 });
 

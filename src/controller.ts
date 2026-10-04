@@ -36,7 +36,7 @@ import {
   vetoRecoveryWithKit,
   vetoRecoveryWithSecrets,
 } from "@nodra/sync-client";
-import { debounce } from "lodash-es";
+import { type Timers, debounce } from "./debounce.js";
 
 // The plugin's sync wiring, free of the `obsidian` runtime so it runs in tests. The shared controller
 // (sync-client `startSyncClient`) leads through `lead()` (never with `steal`: §20.2 plugin); here vault
@@ -72,6 +72,8 @@ export interface SyncDeps extends Pick<SyncClientDeps, "auth" | "vaultCrypto" | 
   readonly onStatus?: (status: SyncStatus) => void;
   readonly notice?: (message: string) => void;
   readonly log?: Client["log"];
+  /** The §14 debounce's timers: Obsidian's `window` (popout windows); tests pass Node's. */
+  readonly timers: Timers;
 }
 
 export interface SyncController {
@@ -91,8 +93,8 @@ export interface SyncController {
 }
 
 /** §14 in one place: quiet period, and a maximum dirty window after which a burst fires anyway. */
-export function hintDebouncer(fire: () => void, t: Pick<Timing, "quietMs" | "maxDirtyMs">) {
-  return debounce(fire, t.quietMs, { maxWait: t.maxDirtyMs });
+export function hintDebouncer(fire: () => void, t: Pick<Timing, "quietMs" | "maxDirtyMs">, timers: Timers) {
+  return debounce(fire, t.quietMs, { maxWait: t.maxDirtyMs, timers });
 }
 
 /** §20.2: `plugin:<installation_id hex>`, fixed for the life of the installation. */
@@ -100,10 +102,10 @@ export const pluginInstallNs = (installationId: string) => `plugin:${installatio
 
 export function startSync(d: SyncDeps): SyncController {
   const timing = { ...DEFAULT_TIMING, ...d.timing };
-  const { fs, installationId, ...rest } = d;
+  const { fs, installationId, timers: hintTimers, ...rest } = d;
   // §20.2 at run time: the plugin is the one host whose folder another tool can sync (NOTES question 419).
   const c = startSyncClient({ ...rest, timing, installNs: pluginInstallNs(installationId), fs: () => fs, detectOtherSyncTools: true });
-  const debounced = hintDebouncer(() => c.wake(), timing);
+  const debounced = hintDebouncer(() => c.wake(), timing, hintTimers);
   return {
     hint: () => debounced(),
     syncNow() {

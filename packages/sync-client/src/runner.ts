@@ -5,6 +5,7 @@ import {
   type CommitResult,
   type Content,
   type LocalCompareHash,
+  type LocalCompareHashOrAbsent,
   type LocalEntry,
   type ObjectId,
   type OutboxStep,
@@ -49,7 +50,7 @@ import {
   setWriteEpoch,
   strayDisposition,
 } from "@nodra/sync-core";
-import { decodeText, encodeText, mergeContent } from "./content.js";
+import { decodeText, mergeContent } from "./content.js";
 import type { ManifestInput } from "./manifest.js";
 import { type Shell, commit, deleteEntry, importRecovery, listAll, readIfExists, renameEntry, replayOpenEntry, runEntry, writeEntry } from "./executor.js";
 import { type LeaderMessage, processNextIntent } from "./intents.js";
@@ -869,7 +870,7 @@ async function execute(c: Client, input: PlanInput, a: Exclude<Action, { kind: "
     if (!r || r.revisionId !== revisionId) throw new Error(`${revisionId} is not the known head of ${objectId}`);
     return withHash(s(), r);
   };
-  const observedFp = (objectId: ObjectId): LocalCompareHash | "ABSENT" => {
+  const observedFp = (objectId: ObjectId): LocalCompareHashOrAbsent => {
     const l = input.local.get(objectId);
     return l?.kind === "PRESENT" ? l.localCompareHash : "ABSENT";
   };

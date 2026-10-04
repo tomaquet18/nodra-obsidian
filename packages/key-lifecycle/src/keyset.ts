@@ -24,7 +24,7 @@ import type {
   KeyWrapKey,
   VerifyingKey,
 } from "@nodra/crypto";
-import { ACCOUNT_SECURITY_CONFIG, ACCOUNT_SECURITY_PROFILE, encodeRecord } from "@nodra/encoding/records";
+import { ACCOUNT_SECURITY_CONFIG, encodeRecord } from "@nodra/encoding/records";
 import type {
   AccountSecurityConfig,
   AccountSecurityProfile,

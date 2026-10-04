@@ -23,7 +23,7 @@ export function loadSettings(data: unknown): { readonly settings: PluginSettings
   if (data === null || data === undefined) return { settings: DEFAULT_SETTINGS, rewrite: false };
   if (typeof data !== "object" || Array.isArray(data)) return { settings: DEFAULT_SETTINGS, rewrite: true };
   const d = data as Record<string, unknown>;
-  const pick = (key: keyof PluginSettings) => (typeof d[key] === "string" ? (d[key] as string) : DEFAULT_SETTINGS[key]);
+  const pick = (key: keyof PluginSettings) => (typeof d[key] === "string" ? d[key] : DEFAULT_SETTINGS[key]);
   const settings: PluginSettings = { vaultId: pick("vaultId"), accessClientId: pick("accessClientId"), accessClientSecret: pick("accessClientSecret") };
   const rewrite = Object.entries(d).some(([k, v]) => !(k in DEFAULT_SETTINGS) || typeof v !== "string");
   return { settings, rewrite };
@@ -34,7 +34,7 @@ export function loadSettings(data: unknown): { readonly settings: PluginSettings
  * on requests to the API, read from the settings at each request. Invalid Access settings reject the
  * request (`AccessSettingsError`, which never repeats a value); nothing is sent. Staging build only.
  */
-export function apiFetch(apiUrl: string, settings: () => Pick<PluginSettings, "accessClientId" | "accessClientSecret">, fetch: typeof globalThis.fetch): typeof globalThis.fetch {
+export function apiFetch(apiUrl: string, settings: () => Pick<PluginSettings, "accessClientId" | "accessClientSecret">, fetch: typeof window.fetch): typeof window.fetch {
   return async (input, init) => {
     const s = settings();
     return withAccessServiceToken({ baseUrl: apiUrl, token: accessServiceToken(s.accessClientId, s.accessClientSecret), fetch })(input, init);

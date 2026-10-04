@@ -1,7 +1,6 @@
 import type { ReplicaAuth, Settings } from "./controller.js";
 import type { BlobOpener } from "./http-backend.js";
 import type { InstallationState } from "./installation.js";
-import type { TrustSession } from "./trust.js";
 import type { ManifestInput } from "./manifest.js";
 import type { BlobCrypto, ManifestBinding, ManifestCodec } from "./ports.js";
 
@@ -79,7 +78,7 @@ export function devVaultCrypto(vaultId: string): BlobCrypto & BlobOpener {
     const scoped = new Uint8Array(encoder.encode(`${epochId}|`).length + payload.byteLength);
     scoped.set(encoder.encode(`${epochId}|`));
     scoped.set(payload, encoder.encode(`${epochId}|`).length);
-    return hex(await crypto.subtle.sign("HMAC", await dedup, scoped as Uint8Array<ArrayBuffer>));
+    return hex(await crypto.subtle.sign("HMAC", await dedup, scoped));
   };
 
   return {

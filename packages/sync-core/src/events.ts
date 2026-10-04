@@ -94,7 +94,7 @@ export function applyEvents(f: ClientFacts, page: readonly SyncEvent[]): { kind:
       facts = confirmByEcho(
         facts,
         entry.mutationId,
-        echoes.map((e) => ({ objectId: e!.objectId, revisionId: e!.revisionId, sequence: e!.sequence, createdSequence: e!.createdSequence })),
+        echoes.map((e) => ({ objectId: e.objectId, revisionId: e.revisionId, sequence: e.sequence, createdSequence: e.createdSequence })),
       );
     }
   }

@@ -3,9 +3,15 @@
 // there is no fallback implementation anywhere in this package.
 import { CryptoError } from "./errors.js";
 
+/**
+ * The runtime's global `crypto` (browser, Obsidian, Node, Workers), or undefined where there is none.
+ * Named directly, not through `globalThis`, which Obsidian's plugin review rejects (obsidianmd/no-global-this).
+ */
+export const runtimeCrypto = (): Crypto | undefined => (typeof crypto === "undefined" ? undefined : crypto);
+
 /** The runtime's `crypto.subtle`, or `UNSUPPORTED_SECURE_CLIENT`. */
 export function subtle(): SubtleCrypto {
-  const c = (globalThis as { crypto?: Crypto }).crypto;
+  const c = runtimeCrypto();
   if (c?.subtle === undefined) {
     throw new CryptoError("UNSUPPORTED_SECURE_CLIENT", "crypto.subtle is not available");
   }
@@ -17,7 +23,7 @@ export function subtle(): SubtleCrypto {
  * instead of half way through a security operation (§23.0 rule 7).
  */
 export async function assertSecureCryptoCapabilities(): Promise<void> {
-  const c = (globalThis as { crypto?: Crypto }).crypto;
+  const c = runtimeCrypto();
   if (c === undefined || typeof c.getRandomValues !== "function") {
     throw new CryptoError("UNSUPPORTED_SECURE_CLIENT", "crypto.getRandomValues is not available");
   }

@@ -202,7 +202,7 @@ export function parse(bytes: Uint8Array, checkKeyOrder = true): NceValue {
   let value: unknown;
   let rest: Uint8Array;
   try {
-    [value, rest] = decodeFirst(bytes, { ...CBORG_OPTIONS, tokenizer: nceTokenizer(bytes) });
+    [value, rest] = decodeFirst(bytes, { ...CBORG_OPTIONS, tokenizer: nceTokenizer(bytes) }) as [unknown, Uint8Array];
   } catch (e) {
     throw fromCborgError(e);
   }

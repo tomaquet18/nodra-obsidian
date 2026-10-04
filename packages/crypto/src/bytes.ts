@@ -1,5 +1,6 @@
 // Random bytes, best-effort zeroization and constant-time comparison.
 import { CryptoError } from "./errors.js";
+import { runtimeCrypto } from "./runtime.js";
 
 /** `getRandomValues` refuses more than 65 536 bytes per call. */
 const MAX_RANDOM_CHUNK = 65_536;
@@ -9,7 +10,7 @@ export function randomBytes(length: number): Uint8Array {
   if (!Number.isSafeInteger(length) || length < 0) {
     throw new CryptoError("BAD_LENGTH", `randomBytes length must be a non-negative integer, got ${String(length)}`);
   }
-  const c = (globalThis as { crypto?: Crypto }).crypto;
+  const c = runtimeCrypto();
   if (c === undefined || typeof c.getRandomValues !== "function") {
     throw new CryptoError("UNSUPPORTED_SECURE_CLIENT", "crypto.getRandomValues is not available");
   }

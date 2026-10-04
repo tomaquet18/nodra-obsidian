@@ -79,7 +79,7 @@ export function lead(o: LeadOptions): Leadership {
       return { kind: "FAILED", error };
     }
     const queue = diskQueue(typeof o.fs === "function" ? o.fs(epoch) : o.fs);
-    close = queue.close;
+    close = () => queue.close();
     leading = true;
     let client: Client | null = null;
     const listener = (event: { readonly data: unknown }) => {

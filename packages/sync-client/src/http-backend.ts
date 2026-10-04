@@ -1,7 +1,7 @@
 import * as P from "@nodra/protocol";
 import type { CommitResult, ContentRef, ObjectId, PrepareRejection, RemoteEntry, RevisionId, RevisionStatus, SyncEvent } from "@nodra/sync-core";
 import type { z } from "zod";
-import { type ManifestBinding, type ManifestCodec, type OpenBlobInput, type ReencryptRejection, type RevisionToReencrypt, type SyncBackend, UPLOAD_TIMEOUT } from "./ports.js";
+import { type ManifestBinding, type ManifestCodec, type OpenBlobInput, type RevisionToReencrypt, type SyncBackend, UPLOAD_TIMEOUT } from "./ports.js";
 import type { ManifestInput } from "./manifest.js";
 
 // SyncBackend (§22) over the Worker's HTTP API (@nodra/protocol), for one vault. It also opens the
@@ -338,7 +338,7 @@ export function httpSyncBackend(o: HttpBackendOptions): SyncBackend {
       if (r.ok) return r;
       // VAULT_DELETING keeps everything, like every other write (§11.4): not a definitive answer.
       if (r.code === "VAULT_DELETING") throw new SyncBackendError(r.code, undefined, r.retryAfterHeader);
-      return { ok: false, code: r.code as ReencryptRejection };
+      return { ok: false, code: r.code };
     },
 
     async getRevisionStatus(revisionIds) {

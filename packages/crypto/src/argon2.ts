@@ -59,7 +59,7 @@ export const ARGON2_LIMITS: ReadonlyMap<number, Argon2Limits> = new Map([
       memoryKib: [65_536, 262_144],
       iterations: [3, 10],
       parallelism: [1, 4],
-    } as Argon2Limits,
+    },
   ],
 ]);
 

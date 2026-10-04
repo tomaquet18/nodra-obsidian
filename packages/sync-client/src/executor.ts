@@ -4,7 +4,7 @@ import {
   type Content,
   type IntentState,
   type JournalEntry,
-  type LocalCompareHash,
+  type LocalCompareHashOrAbsent,
   type ObjectId,
   type PhysicalPath,
   type RevisionEntry,
@@ -182,7 +182,8 @@ async function guarded(op: () => Promise<void>, stillValid: () => Promise<boolea
 }
 
 /** local_compare_hash of the file at `path`, "ABSENT" if nothing is there, "FOLDER" if a folder is. */
-async function fingerprint(shell: Shell, path: PhysicalPath): Promise<LocalCompareHash | "ABSENT" | "FOLDER"> {
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- "FOLDER" is a sentinel next to the hash (a string)
+async function fingerprint(shell: Shell, path: PhysicalPath): Promise<LocalCompareHashOrAbsent | "FOLDER"> {
   const st = await shell.fs.stat(path);
   if (st === null) return "ABSENT";
   if (st.type === "folder") return "FOLDER";
@@ -258,7 +259,7 @@ export async function freshTmpName(shell: Shell): Promise<string> {
 
 export async function writeEntry(
   shell: Shell,
-  w: { objectId: ObjectId; dest: PhysicalPath; expectedPrevFp: LocalCompareHash | "ABSENT"; content: Content; newSynced: RevisionEntry | null; logicalPath: string },
+  w: { objectId: ObjectId; dest: PhysicalPath; expectedPrevFp: LocalCompareHashOrAbsent; content: Content; newSynced: RevisionEntry | null; logicalPath: string },
 ): Promise<ClientJournalEntry> {
   return {
     objectId: w.objectId,
@@ -297,7 +298,7 @@ export async function renameEntry(shell: Shell, r: { objectId: ObjectId; from: P
 export function deleteEntry(d: {
   objectId: ObjectId;
   dest: PhysicalPath;
-  expectedPrevFp: LocalCompareHash | "ABSENT";
+  expectedPrevFp: LocalCompareHashOrAbsent;
   newSynced: RevisionEntry | null;
   marksNotMaterialized: boolean;
 }): JournalEntry {
@@ -492,7 +493,7 @@ async function cancel(shell: Shell, possiblyReplaced = false): Promise<"CANCEL">
   // of a crashed instance that had created its temporary) leaves on disk what this replica may have written:
   // an adapter that rewrites the destination can crash with the new content there and the temporary kept.
   const explained = possiblyReplaced && e.kind === "WRITE" && e.finalFp !== null;
-  const otherSync = explained ? explainWrite(shell.state.otherSync, e.objectId, e.finalFp!) : shell.state.otherSync;
+  const otherSync = explained ? explainWrite(shell.state.otherSync, e.objectId, e.finalFp) : shell.state.otherSync;
   await commit(shell, { ...shell.state, journal: null, otherSync });
   return "CANCEL";
 }

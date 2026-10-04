@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // A release is `node esbuild.config.mjs production`, the exact command run here (in a child process,
@@ -56,6 +57,64 @@ describe("the production build", () => {
 
   it("holds no dev path, no dev wording, no staging host and no Access field", () => {
     expect(found(js, [...DEV_ONLY, ...STAGING_ONLY])).toEqual([]);
+  });
+});
+
+/**
+ * Loads main.js the way Obsidian does (CommonJS, `obsidian` from the app; a stub here), with the global
+ * `Function` replaced by a trap: what the bundle compiles from strings while its modules load (zod's JIT
+ * builds parsers with `new Function`, and probes for it when a schema is created).
+ */
+function load(js: string) {
+  const compiled: string[] = [];
+  const Trap = new Proxy(Function, {
+    construct: (target, args: unknown[]) => (compiled.push(String(args.at(-1))), Reflect.construct(target, args) as object),
+    apply: (target, self, args: unknown[]) => (compiled.push(String(args.at(-1))), Reflect.apply(target, self, args) as unknown),
+  });
+  const app = new Proxy({}, { get: (_t, name) => (name === "__esModule" ? false : class {}) });
+  const module = { exports: {} as Record<string, unknown> };
+  const sandbox: Record<string, unknown> = { module, exports: module.exports, require: () => app, Function: Trap, console, setTimeout, clearTimeout, TextEncoder, TextDecoder, crypto, URL, navigator: { userAgent: "Obsidian" } };
+  sandbox.window = sandbox.self = sandbox.globalThis = sandbox;
+  runInNewContext(js, sandbox);
+  return { compiled, plugin: module.exports.default };
+}
+
+describe("the production build holds no dynamic code (Obsidian's review)", () => {
+  let js: string;
+  beforeAll(() => {
+    const r = build("production", PRODUCTION, "no-eval");
+    expect(r.status, r.output).toBe(0);
+    js = r.js!;
+  }, 120_000);
+
+  it("is not minified, so it can be read: the source's names are in it, one statement per line", () => {
+    expect(found(js, ["function hintDebouncer(", "function takeOwnership(", "NodraPlugin = class extends"])).toHaveLength(3);
+    const lines = js.split("\n");
+    expect(js.length / lines.length).toBeLessThan(80); // a minified bundle is a few very long lines
+  });
+
+  // Unminified, esbuild names each bundled file by its path (comments, CommonJS keys). The public repo
+  // has the plugin at its root: the same paths there and here, so both builds are byte for byte equal.
+  it("names bundled files by layout-free paths, so the public repo's build is the same bytes", () => {
+    expect(found(js, ["../../node_modules/", "../../packages/", "../node_modules/"])).toEqual([]);
+    expect(found(js, ["// node_modules/.pnpm/zod@", "// packages/sync-client/src/", "// src/main.ts"])).toHaveLength(3);
+  });
+
+  it("has no global-object probe through Function (lodash's `Function(\"return this\")`)", () => {
+    expect(found(js, ['Function("return this")', "Function('return this')"])).toEqual([]);
+  });
+
+  it("loads without compiling any code from a string: zod is jitless before its first schema", () => {
+    const { compiled, plugin } = load(js);
+    expect(typeof plugin).toBe("function"); // it really loaded: the plugin class is exported
+    expect(compiled).toEqual([]);
+  });
+
+  it("the trap sees zod's JIT when it is on (so the check above can fail)", () => {
+    const on = /config\(\{ jitless: (?:true|!0) \}\)/;
+    expect(js).toMatch(on);
+    const { compiled } = load(js.replace(on, "config({ jitless: false })"));
+    expect(compiled.length).toBeGreaterThan(0);
   });
 });
 
@@ -140,6 +199,13 @@ describe("release metadata", () => {
     expect(readme).toMatch(/^## Plans and payments$/m);
     expect(readme).toContain("Paid plans (Pro, Max)");
     expect(readme).toContain("the plugin never asks for payment details");
+  });
+
+  it("the README's Network use links the privacy policy for what Nodra's servers see (Obsidian developer policies)", () => {
+    const readme = readFileSync(join(PLUGIN, "README.md"), "utf8");
+    const network = readme.slice(readme.indexOf("## Network use"), readme.indexOf("\n## ",readme.indexOf("## Network use") + 1));
+    expect(network).toContain("https://nodranotes.com/privacy");
+    expect(network).toContain("It sends no telemetry and no analytics.");
   });
 
   it("`version` bumps manifest.json, versions.json and package.json in lockstep", () => {

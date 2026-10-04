@@ -312,7 +312,7 @@ export function startSyncClient(d: SyncClientDeps): SyncClient {
       ]),
     ) as unknown as SyncBackend;
     // §13.1: a SECURITY event in the vault's log says the account's security log grew (§37).
-    const listEvents = tracked.listEvents;
+    const listEvents = tracked.listEvents.bind(tracked);
     const backend: SyncBackend = {
       ...tracked,
       async listEvents(after) {
@@ -336,7 +336,7 @@ export function startSyncClient(d: SyncClientDeps): SyncClient {
       });
       checkSecurity();
     }
-    const meta = await store.db.table("meta").get("meta");
+    const meta: unknown = await store.db.table("meta").get("meta");
     if (meta === undefined) {
       // The write epoch of a new local vault; afterwards the runner learns it (NOTES question 51).
       const { epochId } = await http.getVaultState();

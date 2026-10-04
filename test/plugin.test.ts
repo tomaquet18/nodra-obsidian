@@ -117,7 +117,7 @@ async function load(a = auth(), on = app, data: unknown = null) {
   plugins.push(plugin);
   await plugin.onload();
   on.workspace.layoutReady();
-  return { plugin, fake: plugin as unknown as { ribbon: { icon: string; title: string; el: HTMLElement }[]; statusBar: HTMLElement[]; commands: { id: string }[] } };
+  return { plugin, fake: plugin as unknown as { ribbon: { icon: string; title: string; el: HTMLElement }[]; statusBar: HTMLElement[]; commands: { id: string; name: string }[] } };
 }
 
 const panels = (on = app) => on.workspace.getLeavesOfType(VIEW_TYPE_NODRA);
@@ -178,6 +178,14 @@ describe("the Nodra button and panel", () => {
   it("the commands are still there, as shortcuts", async () => {
     const { fake } = await load();
     expect(fake.commands.map((c) => c.id)).toEqual(expect.arrayContaining(["sync-now", "login", "logout", "enroll", "devices", "toggle-pause", "open-panel"]));
+  });
+
+  // Obsidian shows the plugin's name next to every command (obsidianmd/commands/no-plugin-name-in-command-name).
+  it("no command name repeats the plugin's name", async () => {
+    const { fake } = await load();
+    const names = fake.commands.map((c) => c.name);
+    expect(names.filter((n) => /nodra/i.test(n))).toEqual([]);
+    expect(names).toEqual(expect.arrayContaining(["Open panel", "Create a new vault"]));
   });
 });
 

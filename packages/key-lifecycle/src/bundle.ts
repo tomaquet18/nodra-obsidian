@@ -39,7 +39,7 @@ import { checkCoverage, requiredEpochSet } from "./coverage.js";
 import type { ListedEpoch, RequiredEpoch, VaultState } from "./coverage.js";
 import type { Outcome } from "./errors.js";
 import { envelopeSetHash, epochRecipients, idKey, rootRecipientId } from "./epoch.js";
-import type { EnvelopeRecipientType, RecipientIdentity } from "./epoch.js";
+import type { RecipientIdentity } from "./epoch.js";
 import { verifyEpochChain } from "./epoch-chain.js";
 import type { EpochChainState } from "./epoch-chain.js";
 import { RECOVERY_RECORD_SIGNERS, forbiddenFields, isRecoveryRecordOperation, operationRules, requiredFields } from "./operations.js";
@@ -351,7 +351,7 @@ export async function validateSecurityBundle<T = unknown>(
   bundle: SecurityBundle,
   state: BundleState,
 ): Promise<BundleOutcome<T>> {
-  const operationType = bundle.operation_type as OperationType;
+  const operationType = bundle.operation_type;
   const rules = operationRules(operationType);
   const nonce = bundle.deletion?.nonce;
   const hasNonce = nonce !== undefined;
@@ -1021,7 +1021,7 @@ async function addedReadingKeys(
       const added = pendingRegistry.recipients.filter((r) => !beforeIds.has(idKey(r.recipient_id)));
       const one = added[0];
       if (added.length !== 1 || one === undefined) return null;
-      return [{ recipientId: one.recipient_id, type: one.type as EnvelopeRecipientType }];
+      return [{ recipientId: one.recipient_id, type: one.type }];
     }
     case "NEW_ACCOUNT_KEY":
       return [await account()];

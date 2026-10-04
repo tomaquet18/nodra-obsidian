@@ -12,6 +12,12 @@ export type LogicalPath = string;
 export type Content = Uint8Array;
 /** `local_compare_hash` = HMAC-SHA-256(LocalCompareKey, plaintext), opaque here (§12.2). */
 export type LocalCompareHash = string;
+/**
+ * A `local_compare_hash`, or "ABSENT" where there is no file. The same type as `LocalCompareHash` (a
+ * string), named so every signature that accepts the sentinel says so.
+ */
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- the union documents the "ABSENT" sentinel; LocalCompareHash is a plain string
+export type LocalCompareHashOrAbsent = LocalCompareHash | "ABSENT";
 
 /**
  * A real server revision, as recorded in S (SyncedState) or in the R cache (RemoteState).

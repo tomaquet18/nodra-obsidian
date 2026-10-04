@@ -32,7 +32,7 @@ export interface SigningKeyPair {
 
 /** Generates an Account Signing or Recovery Authority key pair (§25.2). */
 export async function generateSigningKeyPair(): Promise<SigningKeyPair> {
-  const pair = (await subtle().generateKey(ECDSA_KEYGEN, true, ["sign", "verify"])) as CryptoKeyPair;
+  const pair = (await subtle().generateKey(ECDSA_KEYGEN, true, ["sign", "verify"]));
   return {
     publicKey: pair.publicKey as VerifyingKey,
     privateKey: pair.privateKey as ExtractableSigningKey,

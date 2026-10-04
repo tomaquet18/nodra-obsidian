@@ -4,7 +4,7 @@
 // fixed byte lengths, uint ranges, SCREAMING_SNAKE_CASE enum values, role collections ordered by
 // code, and "a field that does not apply is omitted, never null".
 import { decode as nceDecode, encode as nceEncode } from "./nce.js";
-import type { NceValue } from "./nce.js";
+import type { NceMap, NceValue } from "./nce.js";
 
 export type RecordErrorCode =
   | "NOT_A_MAP" // the value (or a nested record) is not an NCE map
@@ -144,7 +144,7 @@ export function arrayOf<T>(field: Field<T>): Field<readonly T[]> {
     decode: (v, at) => {
       notNull(v, at);
       if (!Array.isArray(v)) throw new RecordError("WRONG_TYPE", at, "expected an array");
-      return v.map((item, i) => field.decode(item, `${at}[${i}]`));
+      return (v as readonly NceValue[]).map((item, i) => field.decode(item, `${at}[${i}]`));
     },
     encode: (t, at) => {
       if (!Array.isArray(t)) throw new RecordError("WRONG_TYPE", at, "expected an array");
@@ -262,7 +262,7 @@ export function schema<const S extends Schema>(name: string, fields: S): RecordS
 export function record<S extends Schema>(inner: RecordSchema<S>): Field<RecordOf<S>> {
   return {
     kind: "record",
-    schema: inner as unknown as AnyRecordSchema,
+    schema: inner,
     decode: (v, at) => fromNce(inner, v, at),
     encode: (t, at) => toNce(inner, t, at),
   };
@@ -283,7 +283,7 @@ export function toNce<S extends Schema>(s: RecordSchema<S>, value: RecordOf<S>, 
   }
   // The encode-side twin of UNKNOWN_KEY: a property the table does not name would be silently
   // dropped, and the caller would sign bytes that do not say what it thinks they say.
-  for (const name of Object.keys(value as Record<string, unknown>))
+  for (const name of Object.keys(value))
     if (!(name in s.fields)) throw new RecordError("UNKNOWN_FIELD", at, `${name} is not in the ${s.name} key table`);
   return out;
 }
@@ -303,7 +303,7 @@ export function fromNce<S extends Schema>(s: RecordSchema<S>, v: NceValue, at = 
     }
     out[name] = entry.field.decode(v.get(entry.key) as NceValue, `${at}.${name}`);
   }
-  for (const key of v.keys())
+  for (const key of (v as NceMap).keys())
     if (!known.has(key)) throw new RecordError("UNKNOWN_KEY", at, `key ${key} is not in the ${s.name} key table`);
   return out as RecordOf<S>;
 }

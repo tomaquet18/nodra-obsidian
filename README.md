@@ -51,8 +51,9 @@ account is Managed or Private, and has **Manage devices** (list and revoke), **C
 Obsidian vault), **Can't unlock your account?** (recovery, Managed accounts) and **Sign out**. Signing out
 stops sync; signing in again resumes it without connecting again.
 
-The commands (**Open the Nodra panel**, **Sync now**, **Pause or resume sync**, **Manage devices**, **Create
-a new Nodra vault**, **Recover the account**, **Sign out**…) are shortcuts for the same actions.
+The commands (**Nodra: Open panel**, **Nodra: Sync now**, **Nodra: Pause or resume sync**, **Nodra: Manage
+devices**, **Nodra: Create a new vault**, **Nodra: Recover the account**, **Nodra: Sign out**…) are shortcuts for
+the same actions.
 
 Every file of the vault is synced, attachments included. Hidden files and the `.obsidian` folder are
 not. Concurrent edits of one note are merged when they do not overlap; otherwise a conflict copy
@@ -114,6 +115,8 @@ A GitHub sign-in happens in your web browser, between it, GitHub and Nodra's sig
 itself never talks to GitHub.
 
 It sends no telemetry and no analytics.
+
+Like any online service, Nodra's servers see your account, your requests (IP address and time) and your synced vault data, stored encrypted; what they record, why and for how long is in Nodra's [privacy policy](https://nodranotes.com/privacy).
 
 ## Your data on this device
 

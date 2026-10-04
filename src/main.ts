@@ -1,5 +1,7 @@
+// First: zod is jitless before any schema exists (zod-jitless.ts).
+import "./zod-jitless.js";
 import type { AccountSecrets, LoginMethod } from "@nodra/sync-client";
-import { type App, FileSystemAdapter, Modal, Notice, Platform, Plugin, PluginSettingTab, Setting, TFile, type TAbstractFile } from "obsidian";
+import { type App, type EventRef, FileSystemAdapter, Modal, Notice, Platform, Plugin, PluginSettingTab, Setting, TFile, type TAbstractFile } from "obsidian";
 import { v7 as uuidv7 } from "uuid";
 import { type SecretStore, pluginAuthStorage } from "./auth-storage.js";
 import {
@@ -145,7 +147,7 @@ export default class NodraPlugin extends Plugin {
       apiUrl: NODRA_API_URL,
       supabaseUrl: NODRA_SUPABASE_URL,
       anonKey: NODRA_SUPABASE_ANON_KEY,
-      storage: pluginAuthStorage({ secrets, local: { load: (key) => this.app.loadLocalStorage(key), save: (key, value) => this.app.saveLocalStorage(key, value) } }),
+      storage: pluginAuthStorage({ secrets, local: { load: (key): unknown => this.app.loadLocalStorage(key), save: (key, value) => this.app.saveLocalStorage(key, value) } }),
       installationId: this.installationId(),
       api: this.api,
       authFetch: (input, init) => fetch(input, init),
@@ -153,7 +155,7 @@ export default class NodraPlugin extends Plugin {
     // §3.7: Obsidian routes `obsidian://nodra-auth?vault=<id>&…` to this vault's window; the flow value
     // decides whether it is this instance's sign-in (login.ts `pluginGitHub`).
     this.github = pluginGitHub({ auth: this.auth, vault: this.vaultId(), open: (url) => void window.open(url) });
-    this.registerObsidianProtocolHandler(OAUTH_ACTION, (params) => void this.githubCallback(params as unknown as Record<string, string | undefined>));
+    this.registerObsidianProtocolHandler(OAUTH_ACTION, (params) => void this.githubCallback(params));
     this.registerView(VIEW_TYPE_NODRA, (leaf) => new NodraPanelView(leaf, { facts: () => this.facts(), subscribe: (l) => this.subscribe(l), actions: this.panelActions }));
     this.addRibbonIcon("cloud", "Nodra", () => void this.openPanel());
     this.addSettingTab(new NodraSettingTab(this.app, this));
@@ -163,13 +165,13 @@ export default class NodraPlugin extends Plugin {
     this.registerDomEvent(window, "online", () => this.changed());
     this.registerDomEvent(window, "offline", () => this.changed());
     this.changed();
-    this.addCommand({ id: "open-panel", name: "Open the Nodra panel", callback: () => void this.openPanel() });
+    this.addCommand({ id: "open-panel", name: "Open panel", callback: () => void this.openPanel() });
     this.addCommand({ id: "sync-now", name: "Sync now", callback: () => this.syncNow() });
     this.addCommand({ id: "login", name: "Sign in", callback: () => void this.openPanel() });
     this.addCommand({ id: "logout", name: "Sign out", callback: () => void this.logout() });
     this.addCommand({ id: "enroll", name: "Enroll this vault", callback: () => this.enrollDialog() });
     this.addCommand({ id: "devices", name: "Manage devices", callback: () => void this.devices() });
-    this.addCommand({ id: "create-vault", name: "Create a new Nodra vault", callback: () => void this.createVault() });
+    this.addCommand({ id: "create-vault", name: "Create a new vault", callback: () => void this.createVault() });
     this.addCommand({ id: "recover", name: "Recover the account", callback: () => void this.recoverDialog() });
     this.addCommand({ id: "veto-recovery", name: "Veto a pending recovery request", callback: () => void this.pendingRecovery(true) });
     this.addCommand({
@@ -191,8 +193,8 @@ export default class NodraPlugin extends Plugin {
       this.registerEvent(this.app.vault.on("delete", hint));
       this.registerEvent(this.app.vault.on("rename", hint));
       // §20.3: the attachment folder setting, published when it changes (event, and a periodic check).
-      const onConfig = this.app.vault.on as unknown as (name: string, cb: () => void) => ReturnType<typeof this.app.vault.on>;
-      this.registerEvent(onConfig.call(this.app.vault, "config-changed", () => void this.publishVaultSettings()));
+      const vault = this.app.vault as unknown as { on(name: "config-changed", cb: () => void): EventRef };
+      this.registerEvent(vault.on("config-changed", () => void this.publishVaultSettings()));
       this.registerInterval(window.setInterval(() => void this.publishVaultSettings(), VAULT_SETTINGS_CHECK_MS));
       void this.firstRun();
       void this.restart();
@@ -323,6 +325,7 @@ export default class NodraPlugin extends Plugin {
     let offered = false;
     this.controller = startSync({
       ...trusted.replica,
+      timers: window,
       fs: obsidianFileSystem(
         this.app.vault.adapter,
         (path) => {

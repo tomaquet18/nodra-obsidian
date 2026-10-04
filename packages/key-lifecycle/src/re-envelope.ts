@@ -22,7 +22,6 @@
 import {
   importHkdfBase,
   openEpochSecret,
-  sealEpochSecret,
   importEnvelopePublicKey,
   timingSafeEqual,
   zeroize,

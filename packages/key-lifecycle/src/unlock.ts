@@ -24,7 +24,6 @@ import type {
   EnvelopeUnwrapKey,
   ExtractableEnvelopePrivateKey,
   ExtractableSigningKey,
-  KeyWrapKey,
   SigningKey,
 } from "@nodra/crypto";
 import { NceError } from "@nodra/encoding";

@@ -50,7 +50,7 @@ export async function publishVaultSettings(d: {
     }
   }
   if ((await d.adapter.stat(NODRA_FOLDER)) === null) await d.adapter.mkdir(NODRA_FOLDER);
-  await d.adapter.writeBinary(VAULT_SETTINGS_PATH, bytes.slice().buffer as ArrayBuffer);
+  await d.adapter.writeBinary(VAULT_SETTINGS_PATH, bytes.slice().buffer);
   d.remember(d.setting);
   return true;
 }

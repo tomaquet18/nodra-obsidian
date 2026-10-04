@@ -1,5 +1,5 @@
 import { bytesStartWith } from "./bytes.js";
-import type { Content, LocalCompareHash, LogicalPath, ObjectId, PhysicalPath, SyncedEntry } from "./types.js";
+import type { Content, LocalCompareHash, LocalCompareHashOrAbsent, LogicalPath, ObjectId, PhysicalPath, SyncedEntry } from "./types.js";
 
 // Apply journal and temporary files (§15). The journal exists only to make physical writes safe
 // against crashes; it is not the sync state. Every physical write, rename or delete opens an entry
@@ -23,7 +23,7 @@ export interface JournalEntry {
    */
   readonly tmpName: string | null;
   /** local_compare_hash expected at the destination before the replace, or "ABSENT". */
-  readonly expectedPrevFp: LocalCompareHash | "ABSENT";
+  readonly expectedPrevFp: LocalCompareHashOrAbsent;
   /** local_compare_hash of what ends at the destination (the moved file for RENAME); null for DELETE. */
   readonly finalFp: LocalCompareHash | null;
   /** The S recorded when the entry closes (the applied R, or the R a merge descends from, rule 4). */
@@ -58,13 +58,13 @@ export function openEntry(open: JournalEntry | null, entry: JournalEntry): Journ
 }
 
 /** §15 step 4 / §13.4 step 4: the destination must still be exactly what the entry expects. */
-export function replaceAllowed(entry: JournalEntry, destFp: LocalCompareHash | "ABSENT"): boolean {
+export function replaceAllowed(entry: JournalEntry, destFp: LocalCompareHashOrAbsent): boolean {
   return destFp === entry.expectedPrevFp;
 }
 
 export interface ReplayObservation {
   readonly tmpExists: boolean;
-  readonly destFp: LocalCompareHash | "ABSENT";
+  readonly destFp: LocalCompareHashOrAbsent;
   /** RENAME only: whether the source file is still there. */
   readonly sourceExists: boolean;
 }

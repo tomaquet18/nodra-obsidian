@@ -1,6 +1,8 @@
 import { fakeLocks } from "@nodra/sync-client/test-support/tabs";
 import { describe, expect, it } from "vitest";
 import { ownerLockName, takeOwnership } from "../src/owner.js";
+import { withOwnWindow } from "./support/own-window.js";
+import "./support/window.js";
 
 // §20.2: the plugin's `owner` lock. One instance per installation writes the vault folder; a busy
 // lock is waited for (never answered with a new installation_id); the id is re-read once the lock
@@ -71,5 +73,14 @@ describe("§20.2 owner lock (plugin)", () => {
     abort.abort();
     await expect(second).rejects.toBeDefined();
     first.release();
+  });
+
+  it("waits with window timers (Obsidian popout windows), cleared once the lock is granted", async () => {
+    await withOwnWindow(async (w) => {
+      const owned = await takeOwnership({ locks: fakeLocks(), installationId: () => ID });
+      expect(w.setTimeout).toHaveBeenCalledTimes(1);
+      expect(w.clearTimeout).toHaveBeenCalledWith(w.setTimeout.mock.results[0]!.value);
+      owned.release();
+    });
   });
 });

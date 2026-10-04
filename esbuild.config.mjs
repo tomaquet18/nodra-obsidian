@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import process from "node:process";
 import esbuild from "esbuild";
 import { checkBuildConfig } from "./build-config.mjs";
@@ -28,6 +29,22 @@ if (!checked.ok) {
 const { config } = checked;
 const release = config.env !== "development";
 
+// Unminified, esbuild names every bundled file by its path from here (in comments and CommonJS keys).
+// Here the plugin sits two folders below the workspace root; in the public repo
+// (scripts/export-public-plugin.mjs) it is the root. A release writes the paths as from the root, so the
+// two builds are the same bytes (the export and the public CI compare SHA-256).
+const layoutFreePaths = {
+  name: "layout-free-paths",
+  setup(build) {
+    build.onEnd((result) => {
+      for (const file of result.outputFiles ?? []) {
+        mkdirSync(dirname(file.path), { recursive: true });
+        writeFileSync(file.path, file.text.replaceAll(/\.\.\/\.\.\/(?=(?:node_modules|packages)\/)/g, ""));
+      }
+    });
+  },
+};
+
 const context = await esbuild.context({
   entryPoints: ["src/main.ts"],
   bundle: true,
@@ -38,7 +55,12 @@ const context = await esbuild.context({
   logLevel: "info",
   sourcemap: release ? false : "inline",
   treeShaking: true,
-  minify: release,
+  // Never minified (Obsidian's review reads the released main.js): whitespace and names are kept. Only
+  // the syntax pass runs, which folds the build constants (`NODRA_ENV === "staging"`) so a release
+  // holds no staging or dev code.
+  minifyWhitespace: false,
+  minifyIdentifiers: false,
+  minifySyntax: release,
   define: {
     NODRA_ENV: JSON.stringify(config.env),
     NODRA_API_URL: JSON.stringify(config.apiUrl),
@@ -46,6 +68,8 @@ const context = await esbuild.context({
     NODRA_SUPABASE_ANON_KEY: JSON.stringify(config.supabaseAnonKey),
   },
   outfile: flag("outfile") ?? "main.js",
+  write: !release,
+  plugins: release ? [layoutFreePaths] : [],
 });
 
 if (watch) {

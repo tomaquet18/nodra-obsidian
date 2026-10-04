@@ -110,12 +110,11 @@ export class NodraPanelView extends ItemView {
       case "choose-vault":
         el.createEl("h4", { text: "Choose the Nodra vault" });
         el.createEl("p", { text: "This Obsidian vault will sync to the one you choose, for good: pointing it at another later would mix both." });
-        s.vaults.forEach((vaultId, i) =>
+        for (const [i, vaultId] of s.vaults.entries())
           new Setting(el)
             .setName(`Vault ${i + 1}`)
             .setDesc(vaultId)
-            .addButton((b) => b.setButtonText("Sync to this one").onClick(() => void a.chooseVault(vaultId))),
-        );
+            .addButton((b) => b.setButtonText("Sync to this one").onClick(() => void a.chooseVault(vaultId)));
         return this.account(el, s.email, null, false);
       case "no-vault": {
         el.createEl("h4", { text: "No vault yet" });

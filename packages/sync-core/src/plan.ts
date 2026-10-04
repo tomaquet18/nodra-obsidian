@@ -14,8 +14,6 @@ import type { Action, LocalEntry, ObjectId, PlanInput } from "./types.js";
 // Physical actions and writes run through the apply journal (journal.ts, §15) in the executor.
 // TODO(§15, §16.3): importing untracked files (recovery notes, new user files) as objects.
 
-type Present = Extract<LocalEntry, { kind: "PRESENT" }>;
-
 const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** Priority of the first action (see NOTES.md, "Action priority"). Lower runs first. */
@@ -154,7 +152,7 @@ export function plan(input: PlanInput): Action[] {
     }
     const l = local.get(id);
     if (l?.kind === "PRESENT") {
-      logical.push({ ...d, physicalPath: (l as Present).physicalPath });
+      logical.push({ ...d, physicalPath: l.physicalPath });
     } else if (!materialize.has(id)) {
       // Projected path not materializable (§16.2): the object is marked NOT_MATERIALIZED with
       // S := R. Never written, never deleted; an ABSENT object stops reading as a local delete (5c).

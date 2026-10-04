@@ -133,7 +133,7 @@ export async function epochRecipients(
     ...(await rootRecipients(root)),
     ...activeRecipients(registry).map((recipient) => ({
       recipientId: recipient.recipient_id,
-      type: recipient.type as EnvelopeRecipientType,
+      type: recipient.type,
       publicKey: recipient.public_key,
     })),
   ];

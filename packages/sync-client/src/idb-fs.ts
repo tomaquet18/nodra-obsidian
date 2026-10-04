@@ -179,7 +179,7 @@ export async function readNotes(store: VaultStore, dlc: DeviceLocalCrypto): Prom
     const row = byPath.get(o.physicalPath);
     if (row?.sealed == null) continue; // observed, then removed before this read: the next state message refreshes
     const { objectId, ...observation } = o;
-    notes.push({ objectId, path: o.logicalPath, content: await dlc.decrypt(row.sealed), version: version.get(objectId) ?? 0, observation: observation as Observation });
+    notes.push({ objectId, path: o.logicalPath, content: await dlc.decrypt(row.sealed), version: version.get(objectId) ?? 0, observation: observation });
   }
   return notes.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }

@@ -58,7 +58,7 @@ function gitSyncsOnItsOwn(f: SyncToolFacts): boolean {
   if (!Array.isArray(enabled) || !enabled.includes("obsidian-git")) return false;
   const s = json(f.obsidianGitData);
   if (!isRecord(s)) return false;
-  const on = (key: string) => typeof s[key] === "number" && (s[key] as number) > 0;
+  const on = (key: string) => typeof s[key] === "number" && s[key] > 0;
   return on("autoSaveInterval") || on("autoPushInterval") || on("autoPullInterval") || s.autoPullOnBoot === true;
 }
 

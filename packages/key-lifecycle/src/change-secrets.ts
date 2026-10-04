@@ -62,6 +62,7 @@ export interface ChangeSecretsRequest {
    * is what produces a new Setup Kit. An omitted-means-generate default would silently invalidate
    * a user's Setup Kit on a plain password change.
    */
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- "GENERATE" is the documented sentinel; AccountSecretKeyInput includes any string
   readonly secretKey: AccountSecretKeyInput | "GENERATE";
   /** §24: a chance to move to stronger parameters. Defaults to ADR-004 profile 1. */
   readonly argon2Params?: Argon2Params;

@@ -404,12 +404,12 @@ export async function readLocalView(store: VaultStore): Promise<{ observations: 
   const tables = [store.db.table("observations"), store.db.table("intentObjects")];
   const [obs, versions] = await store.db.transaction("r", tables, async () => [(await tables[0]!.toArray()) as Row[], (await tables[1]!.toArray()) as Row[]]);
   return {
-    observations: new Map(obs!.map((r) => {
+    observations: new Map(obs.map((r) => {
       const copy = { ...r };
       delete copy.objectId;
       return [r.objectId as string, copy as unknown as Observation];
     })),
-    localVersion: new Map(versions!.filter((r) => r.localVersion !== null).map((r) => [r.objectId as string, r.localVersion as number])),
+    localVersion: new Map(versions.filter((r) => r.localVersion !== null).map((r) => [r.objectId as string, r.localVersion as number])),
   };
 }
 
@@ -434,7 +434,7 @@ export async function readPins(store: VaultStore): Promise<StoredPins> {
   const rows = await store.db.transaction("r", table, async () => (await table.toArray()) as PinRow[]);
   const out: Record<string, unknown> = {};
   for (const { id, ...rest } of rows) out[id] = rest;
-  return out as StoredPins;
+  return out;
 }
 
 /**
@@ -460,7 +460,7 @@ export async function writePins(store: VaultStore, pins: StoredPins): Promise<vo
 
 type InstallationDeps = Omit<StoreOptions, "vaultId">;
 
-const idbOf = (o: InstallationDeps): IDBFactory | undefined => o.indexedDB ?? (globalThis as { indexedDB?: IDBFactory }).indexedDB;
+const idbOf = (o: InstallationDeps): IDBFactory | undefined => o.indexedDB ?? (typeof indexedDB === "undefined" ? undefined : indexedDB);
 
 /**
  * The vaults this installation holds a database for: the `nodra:<install_ns>:<vault_id>` names

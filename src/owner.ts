@@ -36,16 +36,16 @@ function hold(d: OwnerDeps, name: string): Promise<() => void> {
   return new Promise((resolve, reject) => {
     let release!: () => void;
     const released = new Promise<void>((r) => (release = r));
-    const waiting = setTimeout(() => d.onWaiting?.(), d.ownerWaitMs ?? OWNER_WAIT_MS);
+    const waiting = window.setTimeout(() => d.onWaiting?.(), d.ownerWaitMs ?? OWNER_WAIT_MS);
     d.locks
       .request(name, { mode: "exclusive", ...(d.signal === undefined ? {} : { signal: d.signal }) }, async () => {
-        clearTimeout(waiting);
+        window.clearTimeout(waiting);
         resolve(release);
         await released;
       })
       .catch((e: unknown) => {
-        clearTimeout(waiting);
-        reject(e);
+        window.clearTimeout(waiting);
+        reject(e instanceof Error ? e : new Error(String(e)));
       });
   });
 }

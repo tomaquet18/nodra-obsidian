@@ -203,8 +203,9 @@ export function parseRecoveryKit(serialized: Uint8Array): Outcome<RecoveryKit, R
     return fail("MALFORMED_KIT", "a serialized kit is the three-element context array of §23.3");
   }
   const [domain, version, map] = decoded as readonly NceValue[];
-  if (domain !== KIT_DOMAIN) return fail("MALFORMED_KIT", `the kit names the domain ${String(domain)}`);
-  if (version !== CONTEXT_VERSION) return fail("MALFORMED_KIT", `unsupported context version ${String(version)}`);
+  const shown = (v: NceValue | undefined) => (typeof v === "object" && v !== null ? "a non-scalar value" : String(v));
+  if (domain !== KIT_DOMAIN) return fail("MALFORMED_KIT", `the kit names the domain ${shown(domain)}`);
+  if (version !== CONTEXT_VERSION) return fail("MALFORMED_KIT", `unsupported context version ${shown(version)}`);
 
   let kit: RecoveryKit;
   try {

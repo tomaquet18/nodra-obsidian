@@ -316,7 +316,7 @@ export async function realVaultCrypto(o: {
       rootHashes: directory.rootHashes,
       rootCryptoVersions: directory.rootCryptoVersions,
       registryHashes: directory.registryHashes,
-      onChainProved: directory.onChainProved,
+      onChainProved: (state) => directory.onChainProved(state),
       ...(directory.epochPin === undefined ? {} : { pin: directory.epochPin }),
     }),
   );

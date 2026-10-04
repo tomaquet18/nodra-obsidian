@@ -59,7 +59,7 @@ export interface EnvelopeKeyPair {
 /** Generates an Account or recipient encryption key pair (§25.2). The private key is extractable
  * only so it can be wrapped immediately; it is never persisted unwrapped. */
 export async function generateEnvelopeKeyPair(): Promise<EnvelopeKeyPair> {
-  const pair = (await subtle().generateKey(RSA_OAEP, true, ["encrypt", "decrypt"])) as CryptoKeyPair;
+  const pair = (await subtle().generateKey(RSA_OAEP, true, ["encrypt", "decrypt"]));
   return {
     publicKey: pair.publicKey as EnvelopePublicKey,
     privateKey: pair.privateKey as ExtractableEnvelopePrivateKey,
@@ -81,7 +81,7 @@ export interface RecipientKeyPair {
  * key is always extractable, which is how its SPKI reaches the Registry.
  */
 export async function generateRecipientKeyPair(): Promise<RecipientKeyPair> {
-  const pair = (await subtle().generateKey(RSA_OAEP, false, ["encrypt", "unwrapKey"])) as CryptoKeyPair;
+  const pair = (await subtle().generateKey(RSA_OAEP, false, ["encrypt", "unwrapKey"]));
   return {
     publicKey: pair.publicKey as EnvelopePublicKey,
     privateKey: pair.privateKey as EnvelopeUnwrapKey,

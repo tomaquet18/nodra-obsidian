@@ -40,7 +40,7 @@ const isHidden = (p: string) => {
 export const isSyncedFile = (p: string): boolean => !isHidden(p);
 
 /** The exact bytes of a view, as the ArrayBuffer `writeBinary` takes. */
-const bufferOf = (data: Uint8Array): ArrayBuffer => data.slice().buffer as ArrayBuffer;
+const bufferOf = (data: Uint8Array): ArrayBuffer => data.slice().buffer;
 
 /**
  * Obsidian's `stat().mtime` is the disk's modification time in ms (NOTES question 146). Its precision

@@ -70,8 +70,8 @@ export function pluginAuth(o: {
   // Its own key, so auth-js's cross-tab channel (named after the key) never reaches the stored login.
   const flowClient = () => supabaseAuth({ supabaseUrl: o.supabaseUrl, anonKey: o.anonKey, storage: memoryAuthStorage(), storageKey: "nodra-oauth-flow", fetch: o.authFetch });
   const build = async (): Promise<PluginLogin> => {
-    const session = await loginSession({ serverUrl: o.apiUrl, accessToken: auth.accessToken, refresh: auth.refresh, fetch: o.api });
-    return { session, email: (await auth.email()) ?? "", accessToken: auth.accessToken };
+    const session = await loginSession({ serverUrl: o.apiUrl, accessToken: () => auth.accessToken(), refresh: () => auth.refresh(), fetch: o.api });
+    return { session, email: (await auth.email()) ?? "", accessToken: () => auth.accessToken() };
   };
   return {
     async current() {

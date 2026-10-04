@@ -351,7 +351,7 @@ export async function verifyRootChain(
     // 1. Every required signature verifies under the key its role names.
     const ctx = rootTransitionContext(transition);
     for (const pair of transition.signatures) {
-      const spki = verifierSpki(pair.code as SignerRole, current, descriptor);
+      const spki = verifierSpki(pair.code, current, descriptor);
       if (spki === null) {
         return fail("BAD_SIGNATURE_SET", `role ${pair.code} needs a root in force`, generation);
       }

@@ -71,6 +71,7 @@ export function truncateToBytes(s: string, maxBytes: number): string {
   return out;
 }
 
+// eslint-disable-next-line no-control-regex -- the control characters U+0000–U+001F are exactly what this rejects
 const FORBIDDEN_CHARS = /[<>:"\\|?*\u0000-\u001f]/g;
 const RESERVED_WINDOWS = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 

@@ -220,7 +220,7 @@ async function clientRenewal(o: { readonly authUrl: string; readonly clientId: s
   userHeaders.set("authorization", `Bearer ${String(tokens.access_token)}`);
   const user = await o.fetch(`${o.authUrl}/user`, { method: "GET", headers: userHeaders });
   if (!user.ok) return user;
-  return Response.json({ ...tokens, user: await user.json() });
+  return Response.json({ ...tokens, user: (await user.json()) as unknown });
 }
 
 /** auth-js's client behind each SupabaseAuth, and where it keeps its session, for `adoptSession`. */

@@ -7,8 +7,9 @@ import { type AuthStorage, memoryAuthStorage, verifierRouter } from "@nodra/sync
 // per vault and device, outside the vault folder). NOTES question 407.
 //
 // §3.7 (ADR-023): auth-js's PKCE verifiers (every key ending in `-code-verifier`) never reach either: they
-// stay in this process's memory (`verifierRouter`). A verifier is good for one 5-minute code, and a restart
-// mid-flow simply restarts the flow.
+// stay in this process's memory (`verifierRouter`). A verifier is good for one code, and a restart
+// mid-flow simply restarts the flow. Since ADR-024 the plugin's own sign-in keeps its verifier outside
+// auth-js (sync-client `nativeOAuth`); the router stays as the guarantee for anything auth-js writes.
 
 /** `app.secretStorage` as the plugin uses it (obsidian.d.ts 1.11.4: ids of a-z, 0-9 and dashes; no delete). */
 export interface SecretStore {

@@ -15,9 +15,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const PLUGIN = fileURLToPath(new URL("..", import.meta.url));
 const b64url = (v: unknown) => Buffer.from(JSON.stringify(v)).toString("base64url");
 const anonJwt = `${b64url({ alg: "HS256", typ: "JWT" })}.${b64url({ role: "anon" })}.c2ln`;
-const PRODUCTION = { NODRA_API_URL: "https://api.nodranotes.com", NODRA_SUPABASE_URL: "https://zlsckqzllncgreukxhqt.supabase.co", NODRA_SUPABASE_ANON_KEY: anonJwt };
-const STAGING = { NODRA_API_URL: "https://api-staging.nodranotes.com", NODRA_SUPABASE_URL: "https://kkolsptpyiubqlhnnwfn.supabase.co", NODRA_SUPABASE_ANON_KEY: "sb_publishable_example" };
-const KEYS = ["NODRA_ENV", "NODRA_API_URL", "NODRA_SUPABASE_URL", "NODRA_SUPABASE_ANON_KEY"];
+// ADR-024: the OAuth client ids (public values; examples here).
+const PRODUCTION = { NODRA_API_URL: "https://api.nodranotes.com", NODRA_SUPABASE_URL: "https://zlsckqzllncgreukxhqt.supabase.co", NODRA_SUPABASE_ANON_KEY: anonJwt, NODRA_OAUTH_CLIENT_ID: "3b7e2a40-5c1d-4e8f-9a6b-2d4c6e8f0a12" };
+const STAGING = { NODRA_API_URL: "https://api-staging.nodranotes.com", NODRA_SUPABASE_URL: "https://kkolsptpyiubqlhnnwfn.supabase.co", NODRA_SUPABASE_ANON_KEY: "sb_publishable_example", NODRA_OAUTH_CLIENT_ID: "8c1f4d2e-6a3b-4c5d-8e9f-0a1b2c3d4e5f" };
+/** The dev server's OAuth client id (DEV_OAUTH_CLIENT; login.test.ts pins build-config.mjs's default to it). Literal: this file is exported without the dev server. */
+const DEV_OAUTH_CLIENT = { id: "6f9a3c1e-0d2b-4c55-9a7e-0b5d1e0a1c01" };
+const KEYS = ["NODRA_ENV", "NODRA_API_URL", "NODRA_SUPABASE_URL", "NODRA_SUPABASE_ANON_KEY", "NODRA_OAUTH_CLIENT_ID"];
 
 let dir: string;
 beforeAll(() => void (dir = mkdtempSync(join(tmpdir(), "nodra-plugin-build-"))));
@@ -39,7 +42,7 @@ function build(env: string, config: Record<string, string>, name: string) {
 /** The needles found in the text (not `toContain` on the bundle: a failure would print all of it). */
 const found = (text: string, needles: readonly string[]) => needles.filter((n) => text.includes(n));
 
-const DEV_ONLY = ["/v1/dev/", "127.0.0.1", "localhost:8787", "x-nodra-dev-replica", "devSignIn", "(dev)", "DEVELOPMENT BUILD", "api-staging", "kkolsptpyiubqlhnnwfn"];
+const DEV_ONLY = ["/v1/dev/", "127.0.0.1", "localhost:8787", "x-nodra-dev-replica", "devSignIn", "(dev)", "DEVELOPMENT BUILD", "api-staging", "kkolsptpyiubqlhnnwfn", DEV_OAUTH_CLIENT.id, STAGING.NODRA_OAUTH_CLIENT_ID];
 const STAGING_ONLY = ["cf-access-client-id", "Access client id"];
 
 describe("the production build", () => {
@@ -53,6 +56,11 @@ describe("the production build", () => {
   it("is the real plugin: the production API and Supabase project, auth-js's routes and the plugin's commands are in it", () => {
     expect(js.length).toBeGreaterThan(100_000);
     expect(found(js, ["https://api.nodranotes.com", PRODUCTION.NODRA_SUPABASE_URL, "/auth/v1", "Sync now", "Sign in"])).toHaveLength(5);
+  });
+
+  it("ADR-024: signs in as the production OAuth client, through the browser; no password form is left", () => {
+    expect(found(js, [PRODUCTION.NODRA_OAUTH_CLIENT_ID, "/auth/v1/oauth", "grant_type: \"authorization_code\"", "Sign in with your browser"])).toHaveLength(4);
+    expect(found(js, ["signInWithPassword(email, password", "Forgot your password?", "Continue with GitHub"])).toEqual([]);
   });
 
   it("holds no dev path, no dev wording, no staging host and no Access field", () => {
@@ -122,16 +130,16 @@ describe("the staging build", () => {
   it("talks to staging and has the Access fields (so the checks above look at real code)", () => {
     const r = build("staging", STAGING, "staging");
     expect(r.status, r.output).toBe(0);
-    expect(found(r.js!, ["api-staging.nodranotes.com", "kkolsptpyiubqlhnnwfn", ...STAGING_ONLY])).toHaveLength(4);
+    expect(found(r.js!, ["api-staging.nodranotes.com", "kkolsptpyiubqlhnnwfn", STAGING.NODRA_OAUTH_CLIENT_ID, ...STAGING_ONLY])).toHaveLength(5);
     expect(found(r.js!, ["/v1/dev/", "127.0.0.1", "(dev)"])).toEqual([]);
   }, 120_000);
 });
 
 describe("the development build", () => {
-  it("points at the local dev server with no configuration", () => {
+  it("points at the local dev server, and its OAuth client (DEV_OAUTH_CLIENT), with no configuration", () => {
     const r = build("development", {}, "development");
     expect(r.status, r.output).toBe(0);
-    expect(found(r.js!, ["http://127.0.0.1:8787"])).toHaveLength(1);
+    expect(found(r.js!, ["http://127.0.0.1:8787", DEV_OAUTH_CLIENT.id])).toHaveLength(2);
   }, 120_000);
 });
 
@@ -149,7 +157,12 @@ describe("the build fails closed", () => {
   }, 120_000);
 
   it("production without its configuration names what is missing", () => {
-    refused("production", {}, "missing", /NODRA_API_URL: missing[\s\S]*NODRA_SUPABASE_URL: missing[\s\S]*NODRA_SUPABASE_ANON_KEY: missing/);
+    refused("production", {}, "missing", /NODRA_API_URL: missing[\s\S]*NODRA_SUPABASE_URL: missing[\s\S]*NODRA_SUPABASE_ANON_KEY: missing[\s\S]*NODRA_OAUTH_CLIENT_ID: missing/);
+  }, 120_000);
+
+  it("ADR-024: an OAuth client id that is not a UUID, or production with the dev client's", () => {
+    refused("production", { ...PRODUCTION, NODRA_OAUTH_CLIENT_ID: "nodra-for-obsidian" }, "client-id", /NODRA_OAUTH_CLIENT_ID/);
+    refused("production", { ...PRODUCTION, NODRA_OAUTH_CLIENT_ID: DEV_OAUTH_CLIENT.id }, "dev-client-id", /NODRA_OAUTH_CLIENT_ID/);
   }, 120_000);
 
   it("production or staging over http, with a path, or with the dev key", () => {

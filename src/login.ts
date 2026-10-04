@@ -1,30 +1,21 @@
-import {
-  type AuthStorage,
-  type LoginMethod,
-  type Settings,
-  type SupabaseAuth,
-  type TrustSession,
-  SessionError,
-  loginSession,
-  memoryAuthStorage,
-  nativeOAuth,
-  supabaseAuth,
-} from "@nodra/sync-client";
+import { type AuthStorage, type Settings, type SupabaseAuth, type TrustSession, SessionError, loginSession, memoryAuthStorage, nativeOAuth, supabaseAuth } from "@nodra/sync-client";
 import { authStorageKey } from "./auth-storage.js";
 
 // §11.3 in the plugin: this installation's own login, a Supabase Auth session held by auth-js
 // (sync-client `supabaseAuth`) in the storage auth-storage.ts gives it. Everything the plugin does with
 // the Nodra API goes through a `loginSession` built from it: its fetch renews an expired token once, and
 // it refuses to send a token of another session (SESSION_CHANGED), because capabilities bind the first
-// one. So the plugin builds a new one after any sign-in or relogin (`current`). Accounts are created in
-// Nodra Web (§35.2), never here.
+// one. So the plugin builds a new one after any sign-in or re-authentication (`current`). Accounts are
+// created in Nodra Web (§35.2), never here.
 //
-// §3.7 (ADR-023, NOTES question 448): "Continue with GitHub" opens the system browser at Supabase's
-// /authorize, with `redirectTo = obsidian://nodra-auth?vault=<id>&flow=<random>`; the callback reaches
-// this instance through `registerObsidianProtocolHandler` (main.ts) and `pluginGitHub` below. The PKCE
-// verifier lives in the memory of a client made for that one flow (sync-client `nativeOAuth`), never in
-// secret storage or data.json; the new session then becomes this installation's login
-// (`adoptSession`), for a re-authentication only when it is the same user.
+// ADR-024: the only sign-in is "Sign in with your browser". The plugin is a public OAuth client of
+// Supabase Auth's OAuth 2.1 server (sync-client `nativeOAuth`): the system browser opens Supabase's
+// /oauth/authorize, the user signs in on Nodra Web (where the CAPTCHA is) and allows "Nodra for
+// Obsidian" on its consent page, and the browser comes back to `obsidian://nodra-auth?code=…&state=…`,
+// which reaches this instance through `registerObsidianProtocolHandler` (main.ts) and
+// `pluginBrowserSignIn` below. The PKCE verifier lives in nativeOAuth's memory only, never in secret
+// storage or data.json; the new session then becomes this installation's login (`adoptSession`), for a
+// re-authentication only when it is the same user.
 
 export interface PluginLogin {
   readonly session: TrustSession;
@@ -36,18 +27,13 @@ export interface PluginLogin {
 export interface PluginAuth {
   /** The stored login as a new session; null when signed out. */
   current(): Promise<PluginLogin | null>;
-  signIn(email: string, password: string): Promise<PluginLogin>;
   /** Ends this installation's session (here and on the server); the enrollment stays. */
   signOut(): Promise<void>;
-  /** §35.7 REAUTH_REQUIRED: signs the same user in again with this password; the new access token. */
-  relogin(password: string): Promise<string>;
   /** The signed-in user's id (`sub`); null when signed out. */
   userId(): Promise<string | null>;
-  /** §3.7: how the signed-in user can authenticate again (`password`, `github`). */
-  loginMethods(): Promise<readonly LoginMethod[]>;
-  /** §3.7: a new auth client over memory only, for one OAuth flow (its verifier and, briefly, its session). */
+  /** A new auth client over memory only, holding a browser sign-in's session until it is adopted. */
   flowClient(): SupabaseAuth;
-  /** §3.7: `from`'s session becomes this installation's login when its user is `expectedUserId` (null: anyone); false otherwise, and nothing changed. */
+  /** `from`'s session becomes this installation's login when its user is `expectedUserId` (null: anyone); false otherwise, and nothing changed. */
   adoptSession(from: SupabaseAuth, expectedUserId: string | null): Promise<boolean>;
   /** The access token of the current login. */
   accessToken(): Promise<string>;
@@ -82,18 +68,8 @@ export function pluginAuth(o: {
         throw e;
       }
     },
-    async signIn(email, password) {
-      await auth.signInWithPassword(email, password);
-      return build();
-    },
     signOut: () => auth.signOut(),
-    async relogin(password) {
-      const token = await auth.relogin(async () => password)();
-      if (token === null) throw new SessionError("NOT_SIGNED_IN", "there is no login session to renew");
-      return token;
-    },
     userId: () => auth.userId(),
-    loginMethods: () => auth.loginMethods(),
     flowClient,
     adoptSession: (from, expectedUserId) => auth.adoptSession(from, expectedUserId),
     accessToken: () => auth.accessToken(),
@@ -108,16 +84,18 @@ export const loginConnection = (login: PluginLogin, vaultId: string): { readonly
   fetch: login.session.fetch,
 });
 
-/** §3.7: the plugin's callback scheme and action (`registerObsidianProtocolHandler("nodra-auth", …)`). */
+/** ADR-024: the plugin's callback scheme and action (`registerObsidianProtocolHandler("nodra-auth", …)`). */
 export const OAUTH_ACTION = "nodra-auth";
+/** ADR-024: the OAuth client's registered redirect URI, exactly (Supabase matches it as a whole string). */
+export const OAUTH_REDIRECT_URI = `obsidian://${OAUTH_ACTION}`;
 
-/** The GitHub sign-in or re-authentication of one plugin instance (§3.7), over sync-client `nativeOAuth`. */
-export interface PluginGitHub {
-  /** Opens GitHub in the system browser; resolves once this instance's callback signed in, or "CANCELLED". */
+/** The browser sign-in or re-authentication of one plugin instance (ADR-024), over sync-client `nativeOAuth`. */
+export interface PluginBrowserSignIn {
+  /** Opens Nodra's sign-in in the system browser; resolves once this instance's callback signed in, or "CANCELLED". */
   signIn(): Promise<"SIGNED_IN" | "CANCELLED">;
   /**
-   * §35.7 REAUTH_REQUIRED for the signed-in user, with GitHub's account picker: the new access token of
-   * the same user; null when cancelled. Another user → OTHER_ACCOUNT, and this installation's login is unchanged.
+   * §35.7 REAUTH_REQUIRED for the signed-in user: the new access token of the same user; null when
+   * cancelled. Another user → OTHER_ACCOUNT, and this installation's login is unchanged.
    */
   reauthenticate(): Promise<string | null>;
   /** Ends the pending flow (the button, or the plugin unloading); its promise resolves as cancelled. */
@@ -127,16 +105,22 @@ export interface PluginGitHub {
   callback(params: Readonly<Record<string, string | undefined>>): Promise<"IGNORED" | "HANDLED">;
 }
 
-export function pluginGitHub(o: {
+export function pluginBrowserSignIn(o: {
   readonly auth: PluginAuth;
-  /** This vault's id (`app.appId`): Obsidian routes `obsidian://nodra-auth?vault=<id>` to its window. */
+  readonly supabaseUrl: string;
+  readonly anonKey: string;
+  /** This build's OAuth client id (NODRA_OAUTH_CLIENT_ID). */
+  readonly clientId: string;
+  /** The fetch for Supabase Auth (the code exchange). */
+  readonly authFetch: typeof fetch;
+  /** This vault's id (`app.appId`): a callback that names another vault is not this instance's. */
   readonly vault: string;
   /** Opens the system browser (`window.open`: Obsidian hands external URLs to the OS). */
   readonly open: (url: string) => void;
   readonly now?: () => number;
   readonly setTimer?: (fn: () => void, ms: number) => unknown;
   readonly clearTimer?: (handle: unknown) => void;
-}): PluginGitHub {
+}): PluginBrowserSignIn {
   type Waiter = { readonly expected: string | null; readonly settle: (r: { readonly ok: true; readonly token: string | null } | { readonly ok: false; readonly error: unknown }) => void };
   let waiter: Waiter | null = null;
   const settle = (r: Parameters<Waiter["settle"]>[0]) => {
@@ -145,17 +129,21 @@ export function pluginGitHub(o: {
     w?.settle(r);
   };
   const flow = nativeOAuth({
-    redirectBase: `obsidian://${OAUTH_ACTION}`,
+    supabaseUrl: o.supabaseUrl,
+    anonKey: o.anonKey,
+    clientId: o.clientId,
+    redirectUri: OAUTH_REDIRECT_URI,
     vault: o.vault,
     newClient: () => o.auth.flowClient(),
-    onExpire: () => settle({ ok: false, error: new SessionError("OAUTH_CALLBACK_INVALID", "no answer from GitHub within 10 minutes") }),
+    fetch: o.authFetch,
+    onExpire: () => settle({ ok: false, error: new SessionError("OAUTH_CALLBACK_INVALID", "no answer from the browser within 10 minutes") }),
     ...(o.now === undefined ? {} : { now: o.now }),
     ...(o.setTimer === undefined ? {} : { setTimer: o.setTimer }),
     ...(o.clearTimer === undefined ? {} : { clearTimer: o.clearTimer }),
   });
-  const start = async (expected: string | null, selectAccount: boolean) => {
+  const start = async (expected: string | null) => {
     settle({ ok: true, token: null }); // a new start ends the previous one, as cancelled
-    const url = await flow.start({ provider: "github", selectAccount });
+    const url = await flow.start();
     const result = new Promise<Parameters<Waiter["settle"]>[0]>((resolve) => (waiter = { expected, settle: resolve }));
     o.open(url);
     const r = await result;
@@ -164,12 +152,12 @@ export function pluginGitHub(o: {
   };
   return {
     async signIn() {
-      return (await start(null, false)) === null ? "CANCELLED" : "SIGNED_IN";
+      return (await start(null)) === null ? "CANCELLED" : "SIGNED_IN";
     },
     async reauthenticate() {
       const expected = await o.auth.userId();
       if (expected === null) throw new SessionError("NOT_SIGNED_IN", "there is no login session to authenticate again");
-      return start(expected, true);
+      return start(expected);
     },
     async cancel() {
       await flow.cancel();
@@ -189,9 +177,9 @@ export function pluginGitHub(o: {
         return "HANDLED";
       }
       try {
-        // §3.7: a re-authentication must be the same user; a sign-in may be anyone.
+        // A re-authentication must be the same user; a sign-in may be anyone.
         if (!(await o.auth.adoptSession(out.auth, w.expected))) {
-          settle({ ok: false, error: new SessionError("OTHER_ACCOUNT", "the GitHub sign-in came back as another user; nothing was replaced") });
+          settle({ ok: false, error: new SessionError("OTHER_ACCOUNT", "the browser signed in as another user; nothing was replaced") });
         } else {
           settle({ ok: true, token: await o.auth.accessToken() });
         }
@@ -204,17 +192,14 @@ export function pluginGitHub(o: {
 }
 
 const PROBLEMS: Partial<Record<SessionError["code"], string>> = {
-  INVALID_CREDENTIALS: "Wrong email or password.",
-  EMAIL_NOT_CONFIRMED: "Confirm your email first: open the link we sent you, then sign in.",
-  INVALID_EMAIL: "That email address is not valid.",
   UNREACHABLE: "Nodra could not be reached. Check your connection and try again.",
   NOT_SIGNED_IN: "You are signed out. Sign in again.",
-  OAUTH_CALLBACK_INVALID: "The GitHub sign-in did not complete (or took more than 10 minutes). Try again.",
-  OAUTH_REFUSED: "GitHub sign-in was cancelled. Try again, or sign in with your email.",
-  OTHER_ACCOUNT: "That GitHub account is not the one of this Nodra account. Choose the GitHub account you sign in to Nodra with, then try again.",
+  OAUTH_CALLBACK_INVALID: "The sign-in did not complete (or took more than 10 minutes). Try again.",
+  OAUTH_REFUSED: "You did not allow Nodra for Obsidian, so nothing changed. Sign in again when you want to connect this vault.",
+  OTHER_ACCOUNT: "Your browser is signed in to Nodra Web as another account, so nothing was replaced. Sign in there as this account, then try again.",
 };
 
-/** What the sign-in dialogs say about a refusal (a SessionError's text never holds a password or a token). */
+/** What the sign-in screens say about a refusal (a SessionError's text never holds a token or a code). */
 export function signInProblem(e: unknown): string {
   if (e instanceof SessionError) return PROBLEMS[e.code] ?? e.message;
   return String(e);

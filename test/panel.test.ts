@@ -24,19 +24,15 @@ const attention = (s: PanelState) => {
 };
 
 describe("signed out", () => {
-  it("shows the sign-in form, not busy, no problem", () => {
-    expect(panelState(facts({ kind: "signed-out" }, { email: null }))).toEqual({ kind: "signed-out", busy: false, waiting: false, problem: null });
+  it("shows the sign-in button, not waiting, no problem", () => {
+    expect(panelState(facts({ kind: "signed-out" }, { email: null }))).toEqual({ kind: "signed-out", waiting: false, problem: null });
   });
-  it("§3.7 while GitHub is open in the browser: waiting (not the password form's busy); a failure shows with the form back", () => {
-    expect(panelState(facts({ kind: "signed-out" }, { email: null, busy: "github" }))).toEqual({ kind: "signed-out", busy: false, waiting: true, problem: null });
-    expect(panelState(facts({ kind: "signed-out" }, { email: null, problem: "GitHub sign-in was cancelled." }))).toMatchObject({ waiting: false, problem: "GitHub sign-in was cancelled." });
+  it("ADR-024 while the browser sign-in is open: waiting; a failure shows with the button back", () => {
+    expect(panelState(facts({ kind: "signed-out" }, { email: null, busy: "browser" }))).toEqual({ kind: "signed-out", waiting: true, problem: null });
+    expect(panelState(facts({ kind: "signed-out" }, { email: null, problem: "You did not allow Nodra for Obsidian." }))).toMatchObject({ waiting: false, problem: "You did not allow Nodra for Obsidian." });
   });
-  it("while signing in: busy, and the last refusal is shown", () => {
-    expect(panelState(facts({ kind: "signed-out" }, { email: null, busy: "sign-in" }))).toMatchObject({ kind: "signed-out", busy: true });
-    expect(panelState(facts({ kind: "signed-out" }, { email: null, problem: "Wrong email or password." }))).toMatchObject({ kind: "signed-out", busy: false, problem: "Wrong email or password." });
-  });
-  it("a connect action in flight does not make the sign-in form busy", () => {
-    expect(panelState(facts({ kind: "signed-out" }, { email: null, busy: "connect" }))).toMatchObject({ busy: false });
+  it("a connect action in flight does not make the sign-in wait", () => {
+    expect(panelState(facts({ kind: "signed-out" }, { email: null, busy: "connect" }))).toMatchObject({ waiting: false });
   });
 });
 

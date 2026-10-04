@@ -373,6 +373,137 @@ describe("supabaseAuth", () => {
     });
   });
 
+  describe("ADR-024 Supabase Auth as an OAuth 2.1 server: the consent page's calls and a client's session", () => {
+    const REDIRECT = "obsidian://nodra-auth";
+    /** A signed-in web user and a pending authorization request of the registered client. */
+    const pending = async (o: { gotrue?: ReturnType<typeof fakeGoTrue> } = {}) => {
+      const c = client(o);
+      const clientId = c.gotrue.registerOAuthClient("Nodra for Obsidian", REDIRECT);
+      await c.auth.signUp(EMAIL, PASSWORD);
+      const request = async (state = "s-1", challenge = "c".repeat(43)) => {
+        const q = new URLSearchParams({ response_type: "code", client_id: clientId, redirect_uri: REDIRECT, code_challenge: challenge, code_challenge_method: "plain", state });
+        const location = (await c.gotrue.fetch(`${URL_}/auth/v1/oauth/authorize?${q}`)).headers.get("location")!;
+        return new URL(location).searchParams.get("authorization_id")!;
+      };
+      return { ...c, clientId, request };
+    };
+    /** The session the client gets for a code (what nativeOAuth does), in a separate client. */
+    const redeem = async (gotrue: ReturnType<typeof fakeGoTrue>, clientId: string, code: string, verifier = "c".repeat(43)) => {
+      const body = new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: REDIRECT, client_id: clientId, code_verifier: verifier });
+      const t = (await (await gotrue.fetch(`${URL_}/auth/v1/oauth/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: body.toString() })).json()) as { access_token: string; refresh_token: string };
+      const storage = memoryAuthStorage();
+      const auth = supabaseAuth({ supabaseUrl: URL_, anonKey: "anon-key", storage, fetch: gotrue.fetch, storageKey: "nodra-auth-x" });
+      await auth.useTokens({ accessToken: t.access_token, refreshToken: t.refresh_token });
+      return { auth, storage };
+    };
+
+    it("oauthAuthorization: what the consent page shows (client name, the signed-in user's email); approve: the redirect with the code and the state", async () => {
+      const { auth, request, clientId } = await pending();
+      const id = await request();
+      expect(await auth.oauthAuthorization(id)).toEqual({ kind: "CONSENT", authorizationId: id, clientName: "Nodra for Obsidian", redirectUri: REDIRECT, email: EMAIL });
+      const landing = new URL(await auth.decideOAuthAuthorization(id, "approve"));
+      expect(`${landing.protocol}//${landing.host}`).toBe(REDIRECT);
+      expect(landing.searchParams.get("state")).toBe("s-1");
+      expect(landing.searchParams.get("code")).toMatch(/^oauth-code-/);
+      expect(clientId).toBeTruthy();
+    });
+
+    it("deny: the redirect carries access_denied and the state, and no code", async () => {
+      const { auth, request } = await pending();
+      const id = await request("s-2");
+      await auth.oauthAuthorization(id);
+      const landing = new URL(await auth.decideOAuthAuthorization(id, "deny"));
+      expect([landing.searchParams.get("error"), landing.searchParams.get("state"), landing.searchParams.has("code")]).toEqual(["access_denied", "s-2", false]);
+    });
+
+    it("a user who consented before: GoTrue approves by itself and answers only the redirect (ALREADY_ALLOWED), which the page must still not follow on its own", async () => {
+      const { auth, request } = await pending();
+      const first = await request();
+      await auth.oauthAuthorization(first);
+      await auth.decideOAuthAuthorization(first, "approve");
+      const second = await request("s-3");
+      const again = await auth.oauthAuthorization(second);
+      expect(again.kind).toBe("ALREADY_ALLOWED");
+      expect(again.kind === "ALREADY_ALLOWED" && new URL(again.redirectUrl).searchParams.get("state")).toBe("s-3");
+    });
+
+    it("an unknown, used or expired request, or one taken by another user: OAUTH_REQUEST_INVALID; signed out: NOT_SIGNED_IN", async () => {
+      const { auth, gotrue, request } = await pending();
+      await expect(auth.oauthAuthorization("authz-nope")).rejects.toMatchObject({ code: "OAUTH_REQUEST_INVALID" });
+      const used = await request();
+      await auth.oauthAuthorization(used);
+      await auth.decideOAuthAuthorization(used, "deny");
+      await expect(auth.decideOAuthAuthorization(used, "approve")).rejects.toMatchObject({ code: "OAUTH_REQUEST_INVALID" });
+      const old = await request();
+      gotrue.clockSkewSeconds = 601;
+      await expect(auth.oauthAuthorization(old)).rejects.toMatchObject({ code: "OAUTH_REQUEST_INVALID" });
+      gotrue.clockSkewSeconds = 0;
+      const taken = await request();
+      await auth.oauthAuthorization(taken);
+      const other = client({ gotrue }).auth;
+      await other.signUp("someone@example.test", PASSWORD);
+      await expect(other.oauthAuthorization(taken)).rejects.toMatchObject({ code: "OAUTH_REQUEST_INVALID" });
+      await auth.signOut();
+      await expect(auth.oauthAuthorization(await request())).rejects.toMatchObject({ code: "NOT_SIGNED_IN" });
+    });
+
+    it("useTokens: the client's tokens become this client's session (the user read from /user)", async () => {
+      const { auth, gotrue, request, clientId } = await pending();
+      const id = await request();
+      await auth.oauthAuthorization(id);
+      const code = new URL(await auth.decideOAuthAuthorization(id, "approve")).searchParams.get("code")!;
+      const { auth: plugin, storage } = await redeem(gotrue, clientId, code);
+      expect(await plugin.email()).toBe(EMAIL);
+      expect(await plugin.userId()).toBe(await auth.userId());
+      expect([...storage.items.keys()]).toEqual(["nodra-auth-x"]);
+    });
+
+    it("a session issued to an OAuth client renews at /oauth/token with its client_id (GoTrue refuses it at /token); a password session still renews at /token", async () => {
+      const { auth, gotrue, request, clientId } = await pending();
+      const id = await request();
+      await auth.oauthAuthorization(id);
+      const code = new URL(await auth.decideOAuthAuthorization(id, "approve")).searchParams.get("code")!;
+      const { auth: plugin } = await redeem(gotrue, clientId, code);
+      const before = claims(await plugin.accessToken());
+      const seen = gotrue.requests.length;
+      expect(await plugin.refresh()).toBe(true);
+      expect(gotrue.requests.slice(seen)).toEqual(["POST /auth/v1/oauth/token", "GET /auth/v1/user"]);
+      const after = claims(await plugin.accessToken());
+      expect(after.session_id).toBe(before.session_id);
+      expect(decodeJwt(await plugin.accessToken())).toMatchObject({ client_id: clientId });
+      // The renewed session is complete: its user is there, and it renews again.
+      expect(await plugin.email()).toBe(EMAIL);
+      expect(await plugin.refresh()).toBe(true);
+
+      const web = gotrue.requests.length;
+      expect(await auth.refresh()).toBe(true);
+      expect(gotrue.requests.slice(web)).toEqual(["POST /auth/v1/token?grant_type=refresh_token"]);
+    });
+
+    it("a refused renewal of a client's session (revoked on the server): refresh() is false, and it is never tried at /token", async () => {
+      const { auth, gotrue, request, clientId } = await pending();
+      const id = await request();
+      await auth.oauthAuthorization(id);
+      const code = new URL(await auth.decideOAuthAuthorization(id, "approve")).searchParams.get("code")!;
+      const { auth: plugin } = await redeem(gotrue, clientId, code);
+      gotrue.revoke(claims(await plugin.accessToken()).session_id);
+      const seen = gotrue.requests.length;
+      expect(await plugin.refresh()).toBe(false);
+      expect(gotrue.requests.slice(seen)).toEqual(["POST /auth/v1/oauth/token"]);
+    });
+
+    it("primaryAuthAt: the session's latest amr timestamp (seconds), kept by a renewal; null when signed out", async () => {
+      const { auth, gotrue } = await pending();
+      const at = await auth.primaryAuthAt();
+      expect(at).toBe((decodeJwt(await auth.accessToken()) as { amr: Array<{ timestamp: number }> }).amr[0]!.timestamp);
+      gotrue.clockSkewSeconds = 3600;
+      await auth.refresh();
+      expect(await auth.primaryAuthAt()).toBe(at);
+      await auth.signOut();
+      expect(await auth.primaryAuthAt()).toBeNull();
+    });
+  });
+
   describe("§3.7 adoptSession: a sign-in or re-authentication completed in a separate client", () => {
     const CALLBACK = "obsidian://nodra-auth?vault=v&flow=f";
     const codeOf = (landing: string) => new URL(landing).searchParams.get("code")!;
@@ -448,5 +579,74 @@ describe("supabaseAuth", () => {
     await auth.dispose();
     await auth.signInWithPassword(EMAIL, PASSWORD);
     expect(changes).toHaveLength(told);
+  });
+});
+
+describe("CAPTCHA (Supabase Attack Protection, Cloudflare Turnstile)", () => {
+  const RESET_TO = "https://app.nodranotes.com/reset-password";
+  /** A GoTrue with CAPTCHA on, and a confirmed user who signed up before it was turned on. */
+  const protectedClient = async () => {
+    const c = client();
+    await c.auth.signUp(EMAIL, PASSWORD);
+    await c.auth.signOut();
+    c.gotrue.captcha = true;
+    return c;
+  };
+
+  it("the fake refuses each guarded call without a token (the check can fail): CAPTCHA_FAILED, and nothing happens", async () => {
+    const { auth, gotrue } = await protectedClient();
+    await expect(auth.signInWithPassword(EMAIL, PASSWORD)).rejects.toMatchObject({ code: "CAPTCHA_FAILED" });
+    await expect(auth.signUp("bob@example.test", PASSWORD)).rejects.toMatchObject({ code: "CAPTCHA_FAILED" });
+    await expect(auth.requestPasswordReset(EMAIL, RESET_TO)).rejects.toMatchObject({ code: "CAPTCHA_FAILED" });
+    expect(gotrue.emails.filter((e) => e.kind === "recovery")).toEqual([]);
+    expect(gotrue.users().map((u) => u.email)).toEqual([EMAIL]);
+    await expect(auth.accessToken()).rejects.toMatchObject({ code: "NOT_SIGNED_IN" });
+  });
+
+  it("sign-in, sign-up and the reset request send their token to GoTrue (`gotrue_meta_security.captcha_token`)", async () => {
+    const { auth, gotrue } = await protectedClient();
+    await auth.signInWithPassword(EMAIL, PASSWORD, "token-1");
+    await auth.signOut();
+    await auth.signUp("bob@example.test", PASSWORD, "token-2");
+    await auth.signOut();
+    await auth.requestPasswordReset(EMAIL, RESET_TO, "token-3");
+    expect(gotrue.captchaTokens).toEqual(["token-1", "token-2", "token-3"]);
+    expect(gotrue.emails.filter((e) => e.kind === "recovery").map((e) => e.email)).toEqual([EMAIL]);
+  });
+
+  it("a token is single-use: the same one again is refused, even after a wrong password spent it", async () => {
+    const { auth } = await protectedClient();
+    await expect(auth.signInWithPassword(EMAIL, "wrong password", "token-1")).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+    await expect(auth.signInWithPassword(EMAIL, PASSWORD, "token-1")).rejects.toMatchObject({ code: "CAPTCHA_FAILED" });
+    await auth.signInWithPassword(EMAIL, PASSWORD, "token-2");
+  });
+
+  it("§35.7 relogin: the password and the token typed with it; a bare password (no token) is refused", async () => {
+    const { auth, gotrue } = await protectedClient();
+    await auth.signInWithPassword(EMAIL, PASSWORD, "token-1");
+    const token = await auth.relogin(async () => ({ password: PASSWORD, captchaToken: "token-2" }))();
+    expect(token).toBe(await auth.accessToken());
+    expect(gotrue.captchaTokens).toEqual(["token-1", "token-2"]);
+    await expect(auth.relogin(async () => PASSWORD)()).rejects.toMatchObject({ code: "CAPTCHA_FAILED" });
+  });
+
+  it("what GoTrue exempts needs no token: renewal, the PKCE code exchange, an email link, a password change", async () => {
+    const { auth, gotrue } = await protectedClient();
+    await auth.requestPasswordReset(EMAIL, RESET_TO, "token-1");
+    const link = new URL(gotrue.emails.at(-1)!.link);
+    await auth.verifyEmailLink("recovery", link.searchParams.get("token_hash")!);
+    expect(await auth.refresh()).toBe(true);
+    await auth.updatePassword("a brand new password");
+    const { url } = await auth.startOAuth({ provider: "github", redirectTo: "https://app.nodranotes.com/auth/callback" });
+    await auth.exchangeCode(new URL(await gotrue.authorize(url, { providerUserId: "1", email: EMAIL, verified: true })).searchParams.get("code")!);
+    expect(gotrue.captchaTokens).toEqual(["token-1"]);
+  });
+
+  it("before CAPTCHA is turned on, a token is harmless: GoTrue ignores it", async () => {
+    const { auth, gotrue } = client();
+    await auth.signUp(EMAIL, PASSWORD, "token-1");
+    await auth.signInWithPassword(EMAIL, PASSWORD, "token-2");
+    expect(gotrue.captchaTokens).toEqual([]);
+    expect(await auth.email()).toBe(EMAIL);
   });
 });

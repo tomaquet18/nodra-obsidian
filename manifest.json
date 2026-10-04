@@ -1,7 +1,7 @@
 {
   "id": "nodra",
   "name": "Nodra",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "minAppVersion": "1.11.4",
   "description": "Encrypted sync for your vault with a Nodra account, with access from any browser. Turn on Private mode for end-to-end encryption.",
   "author": "Nodra",

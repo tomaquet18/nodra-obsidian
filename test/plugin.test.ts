@@ -45,6 +45,7 @@ vi.stubGlobal("NODRA_ENV", "production");
 vi.stubGlobal("NODRA_API_URL", "https://api.test");
 vi.stubGlobal("NODRA_SUPABASE_URL", "https://auth.test");
 vi.stubGlobal("NODRA_SUPABASE_ANON_KEY", "anon");
+vi.stubGlobal("NODRA_OAUTH_CLIENT_ID", "3b7e2a40-5c1d-4e8f-9a6b-2d4c6e8f0a12");
 if (typeof BroadcastChannel === "undefined") vi.stubGlobal("BroadcastChannel", class {});
 Object.defineProperty(navigator, "locks", { value: { request: async () => undefined }, configurable: true });
 
@@ -61,31 +62,36 @@ async function until(cond: () => boolean, what: string, ms = 5_000): Promise<voi
 const EMAIL = "ana@example.test";
 const login = { session: { baseUrl: "https://api.test", fetch: vi.fn() }, email: EMAIL, accessToken: async () => "token" };
 
-/** A fake login store: signed in once `signIn` gets the right password, or a GitHub flow's session is adopted. */
+/** A fake login store: signed in once a browser sign-in's session is adopted (ADR-024). */
 function auth(signedIn = false) {
   let current = signedIn;
   return {
-    // §3.7: a flow client that builds the /authorize URL and redeems any code; adopting its session signs in.
-    flowClient: vi.fn(() => ({
-      startOAuth: async (o: { redirectTo: string }) => ({ url: `https://auth.test/auth/v1/authorize?provider=github&redirect_to=${encodeURIComponent(o.redirectTo)}`, flowId: null }),
-      exchangeCode: async () => undefined,
-      dispose: async () => undefined,
-    })),
+    // A flow client that takes the tokens of the code exchange; adopting its session signs in.
+    flowClient: vi.fn(() => ({ useTokens: async () => undefined, dispose: async () => undefined })),
     adoptSession: vi.fn(async () => ((current = true), true)),
     userId: vi.fn(async () => (current ? "01890000-0000-7000-8000-000000000001" : null)),
-    loginMethods: vi.fn(async () => ["github"]),
     accessToken: vi.fn(async () => "token"),
     current: vi.fn(async () => (current ? login : null)),
-    signIn: vi.fn(async (_email: string, password: string) => {
-      if (password !== "right") throw new SessionError("INVALID_CREDENTIALS", "refused");
-      current = true;
-      return login;
-    }),
     signOut: vi.fn(async () => void (current = false)),
-    relogin: vi.fn(),
     dispose: vi.fn(async () => {}),
   };
 }
+
+/** ADR-024: the browser sign-in's two ends here: the URL sent to the system browser, and the protocol handler. */
+const SIGN_IN = "Sign in with your browser";
+const opens = () => (window.open as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+const handler = (plugin: unknown) => (plugin as { protocolHandlers: Map<string, (p: Record<string, string>) => unknown> }).protocolHandlers.get("nodra-auth")!;
+/** The authorize URL last opened, and the callback params Nodra Web's consent would send back (`code` + this flow's `state`). */
+const opened = () => {
+  const url = new URL(opens().at(-1)![0] as string);
+  return { url, params: { action: "nodra-auth", code: "code-1", state: url.searchParams.get("state")! } as Record<string, string> };
+};
+/** Supabase's token endpoint answering the code exchange (the only fetch the browser sign-in makes). */
+const tokenEndpoint = () =>
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    if (!String(input).endsWith("/auth/v1/oauth/token")) throw new Error(`unexpected fetch ${String(input)}`);
+    return Response.json({ access_token: "access", token_type: "bearer", expires_in: 3600, refresh_token: "refresh" });
+  });
 
 function controller() {
   let onStatus: (s: SyncStatus) => void = () => {};
@@ -190,22 +196,26 @@ describe("the Nodra button and panel", () => {
 });
 
 describe("everything from the panel: sign in → connect → sync", () => {
-  it("Managed: a refused password inline, then sign in, connect with one click, sync, pause, sign out", async () => {
+  it("Managed: a refusal inline (Deny on the consent page), then sign in through the browser, connect with one click, sync, pause, sign out", async () => {
+    vi.spyOn(window, "open").mockImplementation(() => null);
+    tokenEndpoint();
     const a = auth();
     const { c, emit } = controller();
-    const { fake } = await load(a);
-    await until(() => hasButton("Sign in"), "the sign-in form");
+    const { fake, plugin } = await load(a);
+    await until(() => hasButton(SIGN_IN), "the sign-in button");
 
-    type("Email", EMAIL);
-    type("Password", "wrong");
-    button("Sign in").click();
-    await until(() => panelEl().textContent!.includes("Wrong email or password."), "the refusal inline");
+    button(SIGN_IN).click();
+    await until(() => opens().length === 1 && hasButton("Cancel"), "the browser opened");
+    await handler(plugin)({ action: "nodra-auth", error: "access_denied", error_description: "User denied the request", state: opened().params.state! });
+    await until(() => panelEl().textContent!.includes("You did not allow Nodra for Obsidian"), "the refusal inline");
+    expect(a.adoptSession).not.toHaveBeenCalled();
 
     m.trustedPlugin.mockResolvedValue({ replica: null, vault: { kind: "SYNC", vaultId: "v1", remember: true } });
-    type("Password", "right");
-    button("Sign in").click();
+    button(SIGN_IN).click();
+    await until(() => opens().length === 2, "the browser opened again");
+    await handler(plugin)(opened().params);
     await until(() => hasButton("Connect this vault"), "the connect screen");
-    expect(a.signIn).toHaveBeenLastCalledWith(EMAIL, "right");
+    expect(a.adoptSession).toHaveBeenCalledTimes(1);
     expect(panelEl().textContent).toContain(`${EMAIL} · Managed`);
 
     m.trustedPlugin.mockResolvedValue({ replica: { auth: {}, vaultCrypto: {}, planLimits: {} }, vault: { kind: "SYNC", vaultId: "v1", remember: true } });
@@ -232,7 +242,7 @@ describe("everything from the panel: sign in → connect → sync", () => {
     expect(c.syncNow).toHaveBeenCalledTimes(2);
 
     button("Sign out").click();
-    await until(() => hasButton("Sign in"), "signed out");
+    await until(() => hasButton(SIGN_IN), "signed out");
     expect(c.stop).toHaveBeenCalled();
     expect(a.signOut).toHaveBeenCalled();
   });
@@ -277,63 +287,58 @@ describe("everything from the panel: sign in → connect → sync", () => {
     emit({ kind: "error", detail: "signed out", code: "NOT_SIGNED_IN" });
     await until(() => hasButton("Sign in again"), "Sign in again");
     button("Sign in again").click();
-    await until(() => hasButton("Sign in"), "the sign-in form");
+    await until(() => hasButton(SIGN_IN), "the sign-in button");
     expect(a.signOut).toHaveBeenCalled();
   });
 });
 
-describe("§3.7 Continue with GitHub from the panel", () => {
-  /** The URL the plugin sent to the system browser, and the obsidian:// callback params GitHub's redirect would carry. */
-  const opened = () => {
-    const url = (window.open as unknown as { mock: { calls: unknown[][] } }).mock.calls.at(-1)![0] as string;
-    const redirect = new URL(new URL(url).searchParams.get("redirect_to")!);
-    return { url, redirect, params: { action: "nodra-auth", ...Object.fromEntries(redirect.searchParams), code: "code-1" } as Record<string, string> };
-  };
-  const handler = (plugin: unknown) => (plugin as { protocolHandlers: Map<string, (p: Record<string, string>) => unknown> }).protocolHandlers.get("nodra-auth")!;
-
-  it("opens the system browser at GitHub for this vault, waits with Cancel, and the callback signs in and connects", async () => {
+describe("ADR-024 Sign in with your browser from the panel", () => {
+  it("opens Supabase's /oauth/authorize for this build's client, waits with Cancel, and the callback signs in and connects", async () => {
     vi.spyOn(window, "open").mockImplementation(() => null);
+    const fetched = tokenEndpoint();
     const a = auth();
     const { plugin } = await load(a);
-    await until(() => hasButton("Continue with GitHub"), "the GitHub button");
+    await until(() => hasButton(SIGN_IN), "the sign-in button");
     expect(handler(plugin)).toBeDefined();
-    button("Continue with GitHub").click();
-    await until(() => (window.open as unknown as { mock: { calls: unknown[] } }).mock.calls.length === 1, "the browser opened");
-    const { redirect, params } = opened();
-    expect(`${redirect.protocol}//${redirect.host}`).toBe("obsidian://nodra-auth");
-    expect(redirect.searchParams.get("vault")).toBe(app.appId);
-    await until(() => hasButton("Cancel") && panelEl().textContent!.includes("Waiting for GitHub"), "the waiting screen");
+    button(SIGN_IN).click();
+    await until(() => opens().length === 1, "the browser opened");
+    const { url, params } = opened();
+    expect(`${url.origin}${url.pathname}`).toBe("https://auth.test/auth/v1/oauth/authorize");
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({ client_id: "3b7e2a40-5c1d-4e8f-9a6b-2d4c6e8f0a12", redirect_uri: "obsidian://nodra-auth" });
+    await until(() => hasButton("Cancel") && panelEl().textContent!.includes("Waiting for your browser"), "the waiting screen");
 
     m.trustedPlugin.mockResolvedValue({ replica: null, vault: { kind: "SYNC", vaultId: "v1", remember: true } });
     await handler(plugin)(params);
     await until(() => hasButton("Connect this vault"), "the connect screen");
+    expect(fetched).toHaveBeenCalledTimes(1);
     expect(a.adoptSession).toHaveBeenCalledTimes(1);
     // A sign-in adopts any user; only a re-authentication names one.
     expect((a.adoptSession.mock.calls[0] as unknown[])[1]).toBeNull();
   });
 
-  it("a callback this instance did not start, or with another flow, changes nothing and says so", async () => {
+  it("a callback this instance did not start, or with another state, changes nothing and says so", async () => {
     vi.spyOn(window, "open").mockImplementation(() => null);
+    const fetched = tokenEndpoint();
     const a = auth();
     const { plugin } = await load(a);
-    await until(() => hasButton("Continue with GitHub"), "the GitHub button");
+    await until(() => hasButton(SIGN_IN), "the sign-in button");
     const before = Notice.shown.length;
-    await handler(plugin)({ action: "nodra-auth", vault: app.appId, flow: "nothing-pending", code: "c" });
+    await handler(plugin)({ action: "nodra-auth", state: "nothing-pending", code: "c" });
     await until(() => Notice.shown.length > before, "the notice");
     expect(Notice.shown.slice(before)).toEqual(["Nodra: this sign-in link is not for this vault or has expired."]);
-    button("Continue with GitHub").click();
-    await until(() => hasButton("Cancel") && (window.open as unknown as { mock: { calls: unknown[] } }).mock.calls.length === 1, "the waiting screen");
-    await handler(plugin)({ ...opened().params, flow: "another-flow" });
+    button(SIGN_IN).click();
+    await until(() => hasButton("Cancel") && opens().length === 1, "the waiting screen");
+    await handler(plugin)({ ...opened().params, state: "another-flow" });
     await until(() => Notice.shown.length > before + 1, "the second notice");
     expect(Notice.shown.at(-1)).toBe("Nodra: this sign-in link is not for this vault or has expired.");
-    expect(a.adoptSession).not.toHaveBeenCalled();
-    // Cancel: back to the form, and the old flow's callback is ignored too.
+    // Cancel: back to the button, and the old flow's callback is ignored too.
     const stale = opened().params;
     button("Cancel").click();
-    await until(() => hasButton("Continue with GitHub"), "the form again");
+    await until(() => hasButton(SIGN_IN), "the button again");
     await handler(plugin)(stale);
     await until(() => Notice.shown.length > before + 2, "the third notice");
     expect(a.adoptSession).not.toHaveBeenCalled();
+    expect(fetched).not.toHaveBeenCalled();
   });
 });
 
@@ -463,7 +468,7 @@ describe("this vault connected to another account (NOTES question 413)", () => {
     await until(() => panelEl().textContent!.includes("Could not disconnect: Error: blocked"), "the failure");
     expect(hasButton("Disconnect this vault")).toBe(true);
     button("Sign out").click();
-    await until(() => hasButton("Sign in"), "signed out");
+    await until(() => hasButton(SIGN_IN), "signed out");
     expect(a.signOut).toHaveBeenCalled();
   });
 });

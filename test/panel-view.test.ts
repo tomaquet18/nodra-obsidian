@@ -12,7 +12,8 @@ const base: PanelFacts = { phase: { kind: "signed-out" }, email: null, protectio
 
 function actions(): PanelActions & { [K in keyof PanelActions]: ReturnType<typeof vi.fn> } {
   return {
-    signIn: vi.fn(async () => {}),
+    signInWithBrowser: vi.fn(),
+    cancelBrowserSignIn: vi.fn(),
     connect: vi.fn(async () => {}),
     chooseVault: vi.fn(async () => {}),
     createVault: vi.fn(),
@@ -91,11 +92,12 @@ describe("the view", () => {
   });
 
   it("re-renders on a change of state only: what the user is typing survives an unrelated update", async () => {
-    const p = await open({});
-    p.type("Email", "ana@example.test");
-    const field = p.input("Email");
+    const p = await open({ email: "ana@example.test", protection: "PRIVATE", phase: { kind: "not-enrolled" } });
+    p.type("Encryption Password", "enc");
+    const field = p.input("Encryption Password");
     p.update({ now: NOW + 1 }); // same screen
-    expect(p.input("Email")).toBe(field);
+    expect(p.input("Encryption Password")).toBe(field);
+    expect(field.value).toBe("enc");
     p.update({ phase: phase({ kind: "starting" }) });
     expect(p.text()).toContain("Starting…");
   });
@@ -109,37 +111,26 @@ describe("the view", () => {
   });
 });
 
-describe("signed out", () => {
-  it("email and password, Sign in, and the link to create an account in Nodra Web", async () => {
+describe("signed out (ADR-024: the login happens in Nodra Web, in the browser)", () => {
+  it("one button, Sign in with your browser, no email or password field, and the link to create an account in Nodra Web", async () => {
     const p = await open({});
-    p.type("Email", " ana@example.test ");
-    p.type("Password", "pw");
-    p.button("Sign in").click();
-    expect(p.a.signIn).toHaveBeenCalledWith("ana@example.test", "pw");
+    expect(p.el.querySelectorAll("input")).toHaveLength(0);
+    expect([...p.el.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Sign in with your browser"]);
+    p.button("Sign in with your browser").click();
+    expect(p.a.signInWithBrowser).toHaveBeenCalledTimes(1);
     const link = [...p.el.querySelectorAll("a")].find((x) => x.textContent === "Create one");
     expect(link?.getAttribute("href")).toBe("https://app.nodranotes.com");
   });
 
-  it("\"Forgot your password?\" opens Nodra Web, which resets the login password; the plugin sends nothing", async () => {
-    const p = await open({});
-    const link = [...p.el.querySelectorAll("a")].find((x) => x.textContent === "Forgot your password?");
-    expect(link?.getAttribute("href")).toBe("https://app.nodranotes.com");
-    expect(p.a.signIn).not.toHaveBeenCalled();
-  });
-
-  it("nothing is sent without both fields", async () => {
-    const p = await open({});
-    p.type("Email", "ana@example.test");
-    p.button("Sign in").click();
-    expect(p.a.signIn).not.toHaveBeenCalled();
-  });
-
-  it("busy: the button says so and is disabled; a refusal is shown inline", async () => {
-    const p = await open({ busy: "sign-in" });
-    expect(p.button("Signing in…").disabled).toBe(true);
-    p.update({ busy: null, problem: "Wrong email or password." });
-    expect(p.el.querySelector(".nodra-panel-problem")?.textContent).toBe("Wrong email or password.");
-    expect(p.button("Sign in").disabled).toBe(false);
+  it("waiting for the browser: says what to do there, and Cancel ends it; a refusal is shown with the button back", async () => {
+    const p = await open({ busy: "browser" });
+    expect(p.text()).toContain("Waiting for your browser…");
+    expect(p.text()).toContain("allow Nodra for Obsidian");
+    p.button("Cancel").click();
+    expect(p.a.cancelBrowserSignIn).toHaveBeenCalledTimes(1);
+    p.update({ busy: null, problem: "You did not allow Nodra for Obsidian." });
+    expect(p.el.querySelector(".nodra-panel-problem")?.textContent).toBe("You did not allow Nodra for Obsidian.");
+    expect(p.button("Sign in with your browser").disabled).toBe(false);
   });
 });
 

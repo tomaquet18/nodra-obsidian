@@ -10,7 +10,7 @@ import { checkBuildConfig } from "./build-config.mjs";
 //   node esbuild.config.mjs <production|staging|development> [--watch] [--outfile=<path>] [--config=<env file>|none]
 //
 // The configuration comes from the environment (NODRA_API_URL, NODRA_SUPABASE_URL,
-// NODRA_SUPABASE_ANON_KEY), and from `.env.<environment>` next to this file when it exists (variables
+// NODRA_SUPABASE_ANON_KEY, NODRA_OAUTH_CLIENT_ID), and from `.env.<environment>` next to this file when it exists (variables
 // already set win). The development build defaults to the local dev server. It becomes constants in
 // the bundle (src/globals.d.ts), so a production build holds no dev or staging code.
 
@@ -66,6 +66,7 @@ const context = await esbuild.context({
     NODRA_API_URL: JSON.stringify(config.apiUrl),
     NODRA_SUPABASE_URL: JSON.stringify(config.supabaseUrl),
     NODRA_SUPABASE_ANON_KEY: JSON.stringify(config.supabaseAnonKey),
+    NODRA_OAUTH_CLIENT_ID: JSON.stringify(config.oauthClientId),
   },
   outfile: flag("outfile") ?? "main.js",
   write: !release,

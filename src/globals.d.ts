@@ -6,3 +6,5 @@ declare const NODRA_ENV: "production" | "staging" | "development";
 declare const NODRA_API_URL: string;
 declare const NODRA_SUPABASE_URL: string;
 declare const NODRA_SUPABASE_ANON_KEY: string;
+/** ADR-024: this build's OAuth client id at the Supabase project's OAuth 2.1 server. */
+declare const NODRA_OAUTH_CLIENT_ID: string;

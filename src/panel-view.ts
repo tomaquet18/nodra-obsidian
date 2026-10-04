@@ -4,16 +4,16 @@ import { type PanelActionId, type PanelFacts, type PanelState, type Protection, 
 
 // The Nodra panel in the right sidebar: it renders panel.ts's state and wires each control to one of
 // the plugin's existing flows (PanelActions, main.ts). No decision is taken here. The Encryption Password
-// and the Account Secret Key typed into it go to that one call and are cleared at once (§20.1).
+// and the Account Secret Key typed into it go to that one call and are cleared at once (§20.1). The login
+// itself is never typed here (ADR-024): it happens in Nodra Web, in the browser.
 
 export const VIEW_TYPE_NODRA = "nodra-panel";
 
 export interface PanelActions {
-  signIn(email: string, password: string): Promise<void>;
-  /** §3.7: GitHub in the system browser; the panel waits for the callback. */
-  signInWithGitHub(): void;
-  /** Ends the GitHub sign-in the panel waits for. */
-  cancelGitHub(): void;
+  /** ADR-024: Nodra Web in the system browser; the panel waits for the callback. */
+  signInWithBrowser(): void;
+  /** Ends the browser sign-in the panel waits for. */
+  cancelBrowserSignIn(): void;
   /** §35.4 for this installation; the secrets only on a Private account. */
   connect(secrets: AccountSecrets | undefined): Promise<void>;
   chooseVault(vaultId: string): Promise<void>;
@@ -52,8 +52,6 @@ const PROTECTION_TEXT: Record<Protection, string> = { MANAGED: "Managed", PRIVAT
 export class NodraPanelView extends ItemView {
   /** The state last rendered (as JSON): an update to the same state leaves the DOM, and what is being typed, alone. */
   private rendered = "";
-  private email = "";
-  private password = "";
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -82,7 +80,6 @@ export class NodraPanelView extends ItemView {
   override async onClose(): Promise<void> {
     this.contentEl.empty();
     this.rendered = "";
-    this.password = "";
   }
 
   private render(): void {
@@ -90,8 +87,6 @@ export class NodraPanelView extends ItemView {
     const key = JSON.stringify(state);
     if (key === this.rendered) return;
     this.rendered = key;
-    if (state.kind !== "signed-out") this.password = "";
-    if ("email" in state && state.email !== null && state.email !== "") this.email = state.email;
     const el = this.contentEl;
     el.empty();
     el.addClass("nodra-panel");
@@ -105,7 +100,7 @@ export class NodraPanelView extends ItemView {
         el.createEl("p", { text: s.text, cls: "nodra-panel-muted" });
         return;
       case "signed-out":
-        return s.waiting ? this.waitingForGitHub(el, s.problem) : this.signInForm(el, s.busy, s.problem);
+        return s.waiting ? this.waitingForBrowser(el, s.problem) : this.signInForm(el, s.problem);
       case "connect":
         this.connectForm(el, s);
         return this.account(el, s.email, s.protection, false);
@@ -194,55 +189,29 @@ export class NodraPanelView extends ItemView {
     row.createSpan({ text, cls: "nodra-panel-status" });
   }
 
-  private signInForm(el: HTMLElement, busy: boolean, problem: string | null): void {
+  /** ADR-024: one way in, Nodra Web in the system browser, back through obsidian://nodra-auth (login.ts `pluginBrowserSignIn`). */
+  private signInForm(el: HTMLElement, problem: string | null): void {
     el.createEl("h4", { text: "Sign in to Nodra" });
-    el.createEl("p", { text: "Use the email and password of your Nodra account. This is not your Encryption Password.", cls: "nodra-panel-muted" });
-    const submit = () => {
-      const email = this.email.trim();
-      if (busy || email === "" || this.password === "") return;
-      void this.source.actions.signIn(email, this.password);
-    };
-    new Setting(el).setName("Email").addText((t) => {
-      t.inputEl.type = "email";
-      t.setValue(this.email).onChange((v) => (this.email = v));
-    });
-    new Setting(el).setName("Password").addText((t) => {
-      t.inputEl.type = "password";
-      t.setValue(this.password).onChange((v) => (this.password = v));
-      t.inputEl.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") submit();
-      });
-    });
+    el.createEl("p", { text: "Your browser opens Nodra Web: sign in there (email and password, or GitHub), then allow Nodra for Obsidian. Your browser then sends you back here." });
     if (problem !== null) el.createEl("p", { text: problem, cls: ["nodra-panel-problem", "mod-warning"] });
     new Setting(el).addButton((b) =>
       b
-        .setButtonText(busy ? "Signing in…" : "Sign in")
+        .setButtonText("Sign in with your browser")
         .setCta()
-        .setDisabled(busy)
-        .onClick(submit),
+        .onClick(() => this.source.actions.signInWithBrowser()),
     );
-    // §3.7: the system browser, back through obsidian://nodra-auth (login.ts `pluginGitHub`).
-    el.createEl("p", { text: "or", cls: ["nodra-panel-muted", "nodra-panel-or"] });
-    new Setting(el).addButton((b) =>
-      b
-        .setButtonText("Continue with GitHub")
-        .setDisabled(busy)
-        .onClick(() => this.source.actions.signInWithGitHub()),
-    );
-    // The login password is reset in Nodra Web (the email's link returns there); the plugin sends nothing.
-    el.createEl("p", { cls: "nodra-panel-muted" }).createEl("a", { text: "Forgot your password?", href: WEB_URL });
     const create = el.createEl("p", { text: "No account? ", cls: "nodra-panel-muted" });
     create.createEl("a", { text: "Create one", href: WEB_URL });
     create.appendText(" in Nodra Web: this plugin does not create accounts.");
   }
 
-  /** §3.7: GitHub is open in the browser; the callback comes back by itself, or Cancel ends the flow. */
-  private waitingForGitHub(el: HTMLElement, problem: string | null): void {
-    el.createEl("h4", { text: "Waiting for GitHub…" });
-    el.createEl("p", { text: "Finish signing in in your browser. This panel updates by itself when GitHub sends you back to Obsidian." });
-    el.createEl("p", { text: "Nothing comes back after 10 minutes, or the browser did not open Obsidian? Cancel and try again, or sign in with your email.", cls: "nodra-panel-muted" });
+  /** ADR-024: Nodra Web is open in the browser; the callback comes back by itself, or Cancel ends the flow. */
+  private waitingForBrowser(el: HTMLElement, problem: string | null): void {
+    el.createEl("h4", { text: "Waiting for your browser…" });
+    el.createEl("p", { text: "Sign in to Nodra Web in your browser, then allow Nodra for Obsidian. This panel updates by itself when your browser sends you back to Obsidian." });
+    el.createEl("p", { text: "Nothing comes back after 10 minutes, or the browser opened another vault? Cancel and try again from this vault's window.", cls: "nodra-panel-muted" });
     if (problem !== null) el.createEl("p", { text: problem, cls: ["nodra-panel-problem", "mod-warning"] });
-    new Setting(el).addButton((b) => b.setButtonText("Cancel").onClick(() => this.source.actions.cancelGitHub()));
+    new Setting(el).addButton((b) => b.setButtonText("Cancel").onClick(() => this.source.actions.cancelBrowserSignIn()));
   }
 
   private connectForm(el: HTMLElement, s: Extract<PanelState, { kind: "connect" }>): void {

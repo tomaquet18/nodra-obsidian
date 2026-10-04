@@ -10,7 +10,7 @@ export default defineConfig([
     languageOptions: {
       parserOptions: { projectService: { allowDefaultProject: ["eslint.config.*"] } },
       // The build's constants (src/globals.d.ts), replaced by esbuild's `define`.
-      globals: { NODRA_ENV: "readonly", NODRA_API_URL: "readonly", NODRA_SUPABASE_URL: "readonly", NODRA_SUPABASE_ANON_KEY: "readonly" },
+      globals: { NODRA_ENV: "readonly", NODRA_API_URL: "readonly", NODRA_SUPABASE_URL: "readonly", NODRA_SUPABASE_ANON_KEY: "readonly", NODRA_OAUTH_CLIENT_ID: "readonly" },
     },
   },
 ]);

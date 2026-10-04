@@ -153,7 +153,7 @@ async function build(): Promise<OperationWorld> {
   };
 
   const state: BundleState = {
-    authorization: { authenticated: true, token: { scopes: ["VAULT_WRITE", "TRUSTED_SECURITY"] } },
+    authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["VAULT_WRITE", "TRUSTED_SECURITY"] } },
     accountId: ACCOUNT_ID,
     accountState: "ACTIVE",
     root: rootReplay.value,
@@ -207,7 +207,7 @@ async function build(): Promise<OperationWorld> {
  * carries only one, so a suite narrows it here instead of rebuilding the account.
  */
 export function withScopes(state: BundleState, scopes: readonly Scope[]): BundleState {
-  return { ...state, authorization: { authenticated: true, token: { scopes } } };
+  return { ...state, authorization: { authenticated: true, emailConfirmed: true, token: { scopes } } };
 }
 
 /**

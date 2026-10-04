@@ -30,7 +30,7 @@ import {
 /** The account as the Worker sees it before GENESIS: no root, no registry, config version 0. */
 function emptyAccount(): BundleState {
   return {
-    authorization: { authenticated: true },
+    authorization: { authenticated: true, emailConfirmed: true },
     accountId: ACCOUNT_ID,
     accountState: "ACTIVE",
     root: null,

@@ -135,6 +135,13 @@ describe("release metadata", () => {
     expect(claimProblems("In Private mode, sync is end-to-end encrypted.")).toEqual([]);
   });
 
+  it("the README discloses that Nodra is a service with paid plans, and that the plugin takes no payment (Obsidian developer policies)", () => {
+    const readme = readFileSync(join(PLUGIN, "README.md"), "utf8");
+    expect(readme).toMatch(/^## Plans and payments$/m);
+    expect(readme).toContain("Paid plans (Pro, Max)");
+    expect(readme).toContain("the plugin never asks for payment details");
+  });
+
   it("`version` bumps manifest.json, versions.json and package.json in lockstep", () => {
     const copy = join(dir, "version");
     rmSync(copy, { recursive: true, force: true });

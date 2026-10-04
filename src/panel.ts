@@ -60,7 +60,7 @@ export interface PanelFacts {
   /** §3.6, from the verified root chain; null until known. */
   readonly protection: Protection | null;
   /** A panel action in flight. */
-  readonly busy: "sign-in" | "connect" | "disconnect" | null;
+  readonly busy: "sign-in" | "github" | "connect" | "disconnect" | null;
   /** Why the last panel action failed, in plain language; null when it did not. */
   readonly problem: string | null;
   /** `navigator.onLine`. */
@@ -80,7 +80,8 @@ export type SyncWord = "synced" | "syncing" | "paused" | "offline";
 
 export type PanelState =
   | { readonly kind: "loading"; readonly text: string }
-  | { readonly kind: "signed-out"; readonly busy: boolean; readonly problem: string | null }
+  /** `waiting`: a GitHub sign-in is open in the browser (§3.7), with Cancel. */
+  | { readonly kind: "signed-out"; readonly busy: boolean; readonly waiting: boolean; readonly problem: string | null }
   | { readonly kind: "connect"; readonly email: string; readonly protection: Protection | null; readonly busy: boolean; readonly problem: string | null; readonly again: boolean }
   | { readonly kind: "choose-vault"; readonly email: string; readonly vaults: readonly string[] }
   | { readonly kind: "no-vault"; readonly email: string }
@@ -144,7 +145,7 @@ export function panelState(f: PanelFacts): PanelState {
     case "starting":
       return { kind: "loading", text: "Starting…" };
     case "signed-out":
-      return { kind: "signed-out", busy: f.busy === "sign-in", problem: f.problem };
+      return { kind: "signed-out", busy: f.busy === "sign-in", waiting: f.busy === "github", problem: f.problem };
     case "unsupported":
       return attention("Device not supported", "Nodra needs Web Locks and BroadcastChannel, which this device does not have.", null);
     case "waiting-owner":

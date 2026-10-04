@@ -83,7 +83,9 @@ export type BundleFailureCode =
   // §35.15 (ADR-022).
   | "RECOVERY_NOT_MATURE"
   | "RECOVERY_REQUEST_REQUIRED"
-  | "RECOVERY_REQUEST_EXISTS";
+  | "RECOVERY_REQUEST_EXISTS"
+  // §35.2 / §3.7 (ADR-023).
+  | "EMAIL_UNCONFIRMED";
 
 const RETRYABLE: ReadonlySet<BundleFailureCode> = new Set<BundleFailureCode>([
   "SECURITY_STATE_STALE",
@@ -94,6 +96,8 @@ const RETRYABLE: ReadonlySet<BundleFailureCode> = new Set<BundleFailureCode>([
   "REAUTH_REQUIRED",
   // §35.15: retryable from `matures_at` on; not stored.
   "RECOVERY_NOT_MATURE",
+  // §35.2: "reintentable tras confirmar el email; no se guarda".
+  "EMAIL_UNCONFIRMED",
 ]);
 
 /**
@@ -159,6 +163,11 @@ export interface BundleAuthorization {
    * as the Worker computed it from its own clock. Absent means unknown, which is not recent.
    */
   readonly primaryAuthAgeSeconds?: number;
+  /**
+   * §35.2 / §3.7: whether the session's Supabase user has a confirmed email, as the Worker read it
+   * (`nodra_account_email_confirmed`). Read for CREATE_ACCOUNT only; absent means not confirmed.
+   */
+  readonly emailConfirmed?: boolean;
 }
 
 /** §35.12 step 2: "hace 5 minutos o menos". */
@@ -574,6 +583,10 @@ function check0c(
     // §44.5: an escrow row only exists next to the root that justifies it; never adopt a leftover one.
     if (state.escrow !== null) {
       return failure("0c", "INVALID_STATE", "account/has-escrow", "this account already has an account_escrows row", hasNonce);
+    }
+    // §35.2 (ADR-023): §37 and the §35.15 veto need a proven address, whatever the sign-in method.
+    if (state.authorization.emailConfirmed !== true) {
+      return failure("0c", "EMAIL_UNCONFIRMED", "account/email-unconfirmed", "the login's email is not confirmed yet", hasNonce);
     }
   } else if (state.root === null) {
     return failure("0c", "INVALID_STATE", "account/no-root", "this account has no root yet; only CREATE_ACCOUNT is accepted", hasNonce);

@@ -224,7 +224,7 @@ describe("§35.10 broken variants", () => {
     const { world, created } = await build();
     const decision = await validateSecurityBundle(created.bundle, {
       ...world.state,
-      authorization: { authenticated: true, token: { scopes: ["ACCOUNT_SECURITY"] } },
+      authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["ACCOUNT_SECURITY"] } },
     });
     expect(decision.ok).toBe(false);
     if (decision.ok) return;

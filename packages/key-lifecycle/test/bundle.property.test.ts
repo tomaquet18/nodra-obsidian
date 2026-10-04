@@ -106,7 +106,7 @@ async function invariantsHoldFor(bundle: SecurityBundle, state: BundleState, out
 }
 
 // §35.1: "reintentables, SECURITY_STATE_STALE, EPOCH_STALE, VAULT_SET_STALE, COVERAGE_STALE,
-// REAUTH_REQUIRED y RECOVERY_NOT_MATURE".
+// REAUTH_REQUIRED, RECOVERY_NOT_MATURE y EMAIL_UNCONFIRMED".
 const RETRYABLE = new Set([
   "SECURITY_STATE_STALE",
   "EPOCH_STALE",
@@ -114,6 +114,7 @@ const RETRYABLE = new Set([
   "COVERAGE_STALE",
   "REAUTH_REQUIRED",
   "RECOVERY_NOT_MATURE",
+  "EMAIL_UNCONFIRMED",
 ]);
 const STEP_0_CODES = new Set(["WRITE_CAPABILITY_REQUIRED", "SCOPE_REQUIRED", "RECIPIENT_REVOKED"]);
 // §35.1: "RECOVERY_REQUEST_REQUIRED (este último, excepción: ni se guarda ni consume nada)" (§35.15).
@@ -215,10 +216,10 @@ function mutations(): Mutation[] {
         bundle: patch(s.bundle, { coverage_envelopes: [...(s.bundle.coverage_envelopes ?? [])].reverse() }),
       }),
     },
-    { name: "state:no-token", apply: (s) => ({ ...s, state: { ...s.state, authorization: { authenticated: true } } }) },
+    { name: "state:no-token", apply: (s) => ({ ...s, state: { ...s.state, authorization: { authenticated: true, emailConfirmed: true } } }) },
     {
       name: "state:recovery-only",
-      apply: (s) => ({ ...s, state: { ...s.state, authorization: { authenticated: true, token: { scopes: ["RECOVERY_CONTROL"] } } } }),
+      apply: (s) => ({ ...s, state: { ...s.state, authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["RECOVERY_CONTROL"] } } } }),
     },
     { name: "state:account-scheduled", apply: (s) => ({ ...s, state: { ...s.state, accountState: "DELETING_SCHEDULED" } }) },
     { name: "state:config-ahead", apply: (s) => ({ ...s, state: { ...s.state, configVersion: s.state.configVersion + 1 } }) },

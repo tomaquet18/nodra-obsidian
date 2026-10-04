@@ -23,6 +23,7 @@ export * from "./trust.js";
 export * from "./security-events.js";
 export * from "./session.js";
 export * from "./supabase-auth.js";
+export * from "./oauth-flow.js";
 export * from "./access.js";
 export * from "./account-ops.js";
 export * from "./recovery.js";

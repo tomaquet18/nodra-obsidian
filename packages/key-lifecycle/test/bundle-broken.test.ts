@@ -90,7 +90,7 @@ describe("broken variant (a): a validator that evaluates the steps out of order"
     // A session that holds only ACCOUNT_SECURITY: enough for ENROLL_CLIENT, never for REVOKE_CLIENT.
     const underScoped: BundleState = {
       ...state,
-      authorization: { authenticated: true, token: { scopes: ["ACCOUNT_SECURITY"] } },
+      authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["ACCOUNT_SECURITY"] } },
       storedResult: { operationType: "REVOKE_CLIENT", result: { revoked: "the other device" } },
     };
 

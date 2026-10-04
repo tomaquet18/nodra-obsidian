@@ -1,4 +1,4 @@
-import type { AccountSecrets } from "@nodra/sync-client";
+import type { AccountSecrets, LoginMethod } from "@nodra/sync-client";
 import { type App, FileSystemAdapter, Modal, Notice, Platform, Plugin, PluginSettingTab, Setting, TFile, type TAbstractFile } from "obsidian";
 import { v7 as uuidv7 } from "uuid";
 import { type SecretStore, pluginAuthStorage } from "./auth-storage.js";
@@ -23,7 +23,7 @@ import {
 } from "./controller.js";
 import { pluginLabel } from "./device-label.js";
 import { obsidianFileSystem } from "./fs.js";
-import { type PluginAuth, type PluginLogin, loginConnection, pluginAuth, signInProblem } from "./login.js";
+import { OAUTH_ACTION, type PluginAuth, type PluginGitHub, type PluginLogin, loginConnection, pluginAuth, pluginGitHub, signInProblem } from "./login.js";
 import { detectOtherSyncTools, keptConfirmations, observeSyncTools, parseConfirmations, type SyncSignal, unconfirmedSignals } from "./other-sync.js";
 import { type Ownership, takeOwnership } from "./owner.js";
 import {
@@ -52,7 +52,8 @@ import { PUBLISHED_KEY, attachmentFolderSetting, publishVaultSettings } from "./
 // IndexedDB (§20.1). The account itself is created in Nodra Web (§35.2). From a trusted plugin: the
 // device list and revocation (§35.5), a new vault (§35.10), and re-enrollment when this installation
 // was revoked (§35.8). A Managed account can be recovered from here with the login alone (§35.7).
-// Which Nodra vault this Obsidian vault syncs to is chosen once (`chooseVault`).
+// Which Nodra vault this Obsidian vault syncs to is chosen once (`chooseVault`). The login is email +
+// password or GitHub (§3.7): the system browser, back through `obsidian://nodra-auth` (login.ts).
 
 const INSTALLATION_KEY = "nodra-installation-id";
 /** Set once the panel has been offered on this vault and device (the first run opens it, once). */
@@ -92,6 +93,8 @@ export default class NodraPlugin extends Plugin {
   /** Every request to the Nodra API goes through this one fetch (staging: the Cloudflare Access headers, NOTES question 393). */
   private readonly api: typeof fetch = NODRA_ENV === "staging" ? apiFetch(NODRA_API_URL, () => this.settings, (input, init) => fetch(input, init)) : (input, init) => fetch(input, init);
   private auth: PluginAuth | null = null;
+  /** §3.7: this instance's GitHub sign-in (one pending flow at most). */
+  private github: PluginGitHub | null = null;
   private controller: SyncController | null = null;
   private statusEl: HTMLElement | null = null;
   /** §20.2: the `owner` lock of this vault's installation, once held; requested once per load. */
@@ -112,6 +115,8 @@ export default class NodraPlugin extends Plugin {
   /** The panel's controls, each one of the flows below (the same the commands use). */
   private readonly panelActions: PanelActions = {
     signIn: (email, password) => this.signIn(email, password),
+    signInWithGitHub: () => void this.signInWithGitHub(),
+    cancelGitHub: () => void this.github?.cancel(),
     connect: (secrets) => this.connect(secrets),
     chooseVault: (vaultId) => this.chooseVault(vaultId),
     createVault: () => void this.createVault(),
@@ -145,6 +150,10 @@ export default class NodraPlugin extends Plugin {
       api: this.api,
       authFetch: (input, init) => fetch(input, init),
     });
+    // §3.7: Obsidian routes `obsidian://nodra-auth?vault=<id>&…` to this vault's window; the flow value
+    // decides whether it is this instance's sign-in (login.ts `pluginGitHub`).
+    this.github = pluginGitHub({ auth: this.auth, vault: this.vaultId(), open: (url) => void window.open(url) });
+    this.registerObsidianProtocolHandler(OAUTH_ACTION, (params) => void this.githubCallback(params as unknown as Record<string, string | undefined>));
     this.registerView(VIEW_TYPE_NODRA, (leaf) => new NodraPanelView(leaf, { facts: () => this.facts(), subscribe: (l) => this.subscribe(l), actions: this.panelActions }));
     this.addRibbonIcon("cloud", "Nodra", () => void this.openPanel());
     this.addSettingTab(new NodraSettingTab(this.app, this));
@@ -199,6 +208,7 @@ export default class NodraPlugin extends Plugin {
     void this.controller?.stop();
     this.controller = null;
     this.listeners.clear();
+    void this.github?.cancel();
     void this.auth?.dispose();
   }
 
@@ -228,6 +238,12 @@ export default class NodraPlugin extends Plugin {
 
   private facts(): PanelFacts {
     return { phase: this.phase, email: this.email, protection: this.protection, busy: this.busy, problem: this.problem, online: navigator.onLine, lastSyncedAt: this.lastSyncedAt, now: Date.now() };
+  }
+
+  /** §3.7: this vault's id, the `vault` of the callback URL (Obsidian URI: name or id). */
+  private vaultId(): string {
+    const id = (this.app as { appId?: unknown }).appId;
+    return typeof id === "string" && id !== "" ? id : this.app.vault.getName();
   }
 
   private subscribe(listener: () => void): () => void {
@@ -669,7 +685,15 @@ export default class NodraPlugin extends Plugin {
         onPhase: (phase) => {
           if (phase === "RECOVERING") new Notice("Nodra: recovering the account…");
         },
-        relogin: () => new Promise((resolve) => new ReloginModal(this.app, login.email, (password) => auth.relogin(password), resolve).open()),
+        relogin: async () => {
+          // §3.7: every method the user has; GitHub only when it is linked (an OAuth-only user has no password).
+          const methods: readonly LoginMethod[] = await auth.loginMethods().catch(() => ["password"] as const);
+          const github = this.github;
+          const withGitHub = methods.includes("github") && github !== null ? () => github.reauthenticate() : null;
+          return new Promise((resolve) =>
+            new ReloginModal(this.app, login.email, methods.includes("password") || methods.length === 0 ? (password) => auth.relogin(password) : null, withGitHub, () => void github?.cancel(), resolve).open(),
+          );
+        },
       });
     } catch (e) {
       new Notice(`Nodra: the account was not recovered: ${String(e)}`, 0);
@@ -696,6 +720,37 @@ export default class NodraPlugin extends Plugin {
     }
     this.protection = null;
     await this.restart();
+  }
+
+  /**
+   * §3.7 from the panel: GitHub in the system browser, then the callback (`githubCallback`). The panel
+   * waits with Cancel; 10 minutes without a callback end the flow. Account creation stays in Nodra Web:
+   * a GitHub user without an account gets the existing "create your account in Nodra Web" state.
+   */
+  private async signInWithGitHub(): Promise<void> {
+    if (this.busy !== null || this.github === null) return;
+    this.busy = "github";
+    this.problem = null;
+    this.changed();
+    let outcome: "SIGNED_IN" | "CANCELLED";
+    try {
+      outcome = await this.github.signIn();
+    } catch (e) {
+      this.problem = signInProblem(e);
+      return;
+    } finally {
+      this.busy = null;
+      this.changed();
+    }
+    if (outcome === "CANCELLED") return;
+    this.protection = null;
+    await this.restart();
+  }
+
+  /** `obsidian://nodra-auth`: a callback this instance did not start (or too late) changes nothing and says so. */
+  private async githubCallback(params: Record<string, string | undefined>): Promise<void> {
+    const handled = await this.github?.callback(params);
+    if (handled === "IGNORED") new Notice("Nodra: this sign-in link is not for this vault or has expired.");
   }
 
   /**
@@ -935,8 +990,10 @@ class ConfirmModal extends Modal {
 }
 
 /**
- * §35.7 REAUTH_REQUIRED: a sign-in of the last 5 minutes, as the same user. A refused password stays in
- * the dialog to try again; closing it yields null. The password is not kept.
+ * §35.7 REAUTH_REQUIRED: a sign-in of the last 5 minutes, as the same user, with the methods the user
+ * has (§3.7): the password (`login`, null for an OAuth-only user) and GitHub (`github`, null when not
+ * linked), which must come back as the same user. A refused attempt stays in the dialog to try again;
+ * closing it yields null (and ends a pending GitHub flow). The password is not kept.
  */
 class ReloginModal extends Modal {
   private done = false;
@@ -944,42 +1001,72 @@ class ReloginModal extends Modal {
   constructor(
     app: App,
     private readonly email: string,
-    private readonly login: (password: string) => Promise<string>,
+    private readonly login: ((password: string) => Promise<string>) | null,
+    private readonly github: (() => Promise<string | null>) | null,
+    private readonly cancelGitHub: () => void,
     private readonly resolve: (accessToken: string | null) => void,
   ) {
     super(app);
   }
 
+  private finish(accessToken: string): void {
+    this.done = true;
+    this.close();
+    this.resolve(accessToken);
+  }
+
   override onOpen(): void {
     const { contentEl } = this;
     this.setTitle("Sign in again to recover");
-    contentEl.createEl("p", { text: `For your safety, recovery needs a recent sign-in: enter the password of ${this.email} again.` });
-    let password = "";
-    new Setting(contentEl).setName("Password").addText((t) => {
-      t.inputEl.type = "password";
-      t.onChange((v) => (password = v));
-    });
+    const how = this.login !== null && this.github !== null ? "enter your password or continue with GitHub" : this.github !== null ? "continue with GitHub" : `enter the password of ${this.email} again`;
+    contentEl.createEl("p", { text: `For your safety, recovery needs a recent sign-in as ${this.email}: ${how}.` });
     const error = contentEl.createEl("p", { cls: "mod-warning" });
-    new Setting(contentEl)
-      .addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))
-      .addButton((b) =>
+    const login = this.login;
+    if (login !== null) {
+      let password = "";
+      new Setting(contentEl).setName("Password").addText((t) => {
+        t.inputEl.type = "password";
+        t.onChange((v) => (password = v));
+      });
+      new Setting(contentEl).addButton((b) =>
         b.setButtonText("Sign in and retry").setCta().onClick(() => {
           if (password === "") return;
-          this.login(password).then(
-            (accessToken) => {
-              this.done = true;
-              this.close();
-              this.resolve(accessToken);
-            },
+          login(password).then(
+            (accessToken) => this.finish(accessToken),
             (e: unknown) => error.setText(signInProblem(e)),
           );
         }),
       );
+    }
+    const github = this.github;
+    if (github !== null) {
+      const waiting = contentEl.createEl("p", { cls: "nodra-panel-muted" });
+      new Setting(contentEl).addButton((b) =>
+        b.setButtonText("Continue with GitHub").onClick(() => {
+          error.setText("");
+          waiting.setText("Waiting for GitHub… Finish in your browser, choosing the GitHub account you sign in to Nodra with.");
+          github().then(
+            (accessToken) => {
+              waiting.setText("");
+              if (accessToken !== null) this.finish(accessToken);
+            },
+            (e: unknown) => {
+              waiting.setText("");
+              error.setText(signInProblem(e));
+            },
+          );
+        }),
+      );
+    }
+    new Setting(contentEl).addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()));
   }
 
   override onClose(): void {
     this.contentEl.empty();
-    if (!this.done) this.resolve(null);
+    if (!this.done) {
+      this.cancelGitHub();
+      this.resolve(null);
+    }
   }
 }
 

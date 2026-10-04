@@ -72,7 +72,7 @@ function withRequests(state: BundleState, requests: readonly StoredRecoveryReque
 }
 
 function withScopes(state: BundleState, scopes: readonly Scope[]): BundleState {
-  return { ...state, authorization: { authenticated: true, token: { scopes } } };
+  return { ...state, authorization: { authenticated: true, emailConfirmed: true, token: { scopes } } };
 }
 
 /** A record bundle over the world's root, signed by `signer`, with any field of the record overridden. */

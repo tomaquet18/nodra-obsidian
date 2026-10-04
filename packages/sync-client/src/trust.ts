@@ -85,6 +85,11 @@ export type TrustFailureCode =
    * step-0 refusal). The PENDING row is kept; the next attempt resends the SAME bytes, never new keys.
    */
   | "ENROLLMENT_PENDING"
+  /**
+   * §35.2 / §3.7: CREATE_ACCOUNT before the login's email is confirmed. Retryable: the PENDING row is
+   * kept, and the SAME bundle is resent once the email is confirmed (the kits already shown stay valid).
+   */
+  | "EMAIL_UNCONFIRMED"
   /** §20.2: the per-installation compare-and-set kept losing to other contexts; nothing was overwritten. */
   | "INSTALLATION_CONTENDED"
   /** §26/§28.3: the server served a config older than this installation's `config_version` pin. */
@@ -1037,7 +1042,9 @@ export async function settleAccountCreation(
       if (submitted.kind === "NO_ANSWER") throw new TrustError("ENROLLMENT_PENDING", `no answer to the account creation (${submitted.detail}); the same bundle is resent next time`);
       if (submitted.answer.ok) outcome = { applied: true };
       else if ((await accountState(o, transport)).hasRoot && (await registryStatus(transport, o.accountId, row.recipientId, undefined)) === "ACTIVE") outcome = { applied: true };
-      else outcome = { applied: false, code: submitted.answer.code };
+      else if (submitted.answer.code === "EMAIL_UNCONFIRMED") {
+        throw new TrustError("EMAIL_UNCONFIRMED", "the login's email is not confirmed yet; the same bundle is resent once it is");
+      } else outcome = { applied: false, code: submitted.answer.code };
     }
     if (!outcome.applied) {
       if (await store.commit(snap.version, { [RECIPIENT]: null })) throw new TrustError("ENROLLMENT_REJECTED", `the account creation was not applied: ${outcome.code}`);

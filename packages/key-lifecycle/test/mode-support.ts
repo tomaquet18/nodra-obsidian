@@ -132,7 +132,7 @@ export async function holdAccount(input: {
       vaults: clientVaults,
     },
     state: {
-      authorization: { authenticated: true, token: { scopes: ["VAULT_WRITE", "TRUSTED_SECURITY"] } },
+      authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["VAULT_WRITE", "TRUSTED_SECURITY"] } },
       accountId,
       accountState: "ACTIVE",
       root: root.value,

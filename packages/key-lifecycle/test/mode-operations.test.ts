@@ -65,7 +65,7 @@ async function fullyCovered(view: AccountView, coverage: readonly EpochEnvelope[
 describe("T1: a new account is Managed, with escrow and without Setup Kit or Recovery Kit", () => {
   it("is accepted by §35.1.1 as a version-2 GENESIS carrying both slots", async () => {
     const created = managed.created;
-    const empty: BundleState = { ...managed.state, authorization: { authenticated: true }, root: null, registry: null, configVersion: 0, vaults: [], escrow: null };
+    const empty: BundleState = { ...managed.state, authorization: { authenticated: true, emailConfirmed: true }, root: null, registry: null, configVersion: 0, vaults: [], escrow: null };
     const accepted = await accept(created.bundle, empty);
     expect(accepted.escrowChange).toEqual({ kind: "CREATE", escrow: created.escrow });
     expect(created.root.crypto_version).toBe(2);

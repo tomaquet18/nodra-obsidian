@@ -24,7 +24,12 @@ export class SessionError extends Error {
       | "INVALID_EMAIL"
       | "SAME_PASSWORD"
       | "RATE_LIMITED"
-      | "RECOVERY_LINK_INVALID"
+      | "EMAIL_LINK_INVALID"
+      // §3.7 (ADR-023): a PKCE callback that cannot be redeemed here; the provider's own refusal
+      // (the user cancelled, or an error) with its code; a re-authentication as another user.
+      | "OAUTH_CALLBACK_INVALID"
+      | "OAUTH_REFUSED"
+      | "OTHER_ACCOUNT"
       | "REFUSED"
       | "UNREACHABLE",
     message: string,

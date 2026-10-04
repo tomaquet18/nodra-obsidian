@@ -182,7 +182,7 @@ export async function makeBundleWorld(): Promise<BundleWorld> {
   }
 
   const state: BundleState = {
-    authorization: { authenticated: true, token: { scopes: ["VAULT_WRITE", "TRUSTED_SECURITY"] } },
+    authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["VAULT_WRITE", "TRUSTED_SECURITY"] } },
     accountId,
     accountState: "ACTIVE",
     root: replay.value,
@@ -381,7 +381,7 @@ export async function createAccountScenario(world: BundleWorld): Promise<Scenari
     signingKey: world.as1.privateKey,
   });
   const state: BundleState = {
-    authorization: { authenticated: true },
+    authorization: { authenticated: true, emailConfirmed: true },
     accountId: world.accountId,
     accountState: "ACTIVE",
     root: null,
@@ -520,7 +520,7 @@ export async function recoveryResetScenario(world: BundleWorld): Promise<Scenari
   return {
     state: {
       ...world.state,
-      authorization: { authenticated: true, token: { scopes: ["RECOVERY_CONTROL"] } },
+      authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["RECOVERY_CONTROL"] } },
       // §35.15: a Private reset applies only with a matured request of its kind.
       recoveryRequests: [storedRequest("RECOVERY_RESET")],
     },
@@ -748,7 +748,7 @@ export async function recoveryRecordScenario(world: BundleWorld, operationType: 
   const { kind, signer, scopes, live } = spec[operationType];
   const state: BundleState = {
     ...world.state,
-    authorization: { authenticated: true, token: { scopes } },
+    authorization: { authenticated: true, emailConfirmed: true, token: { scopes } },
     recoveryRequests: live,
   };
   return {

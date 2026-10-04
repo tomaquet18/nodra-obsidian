@@ -91,7 +91,7 @@ describe("step 0 — authorization, before any state is read", () => {
 
   it("rejects a bundle with no Write Capability Token", async () => {
     const { bundle, state } = scenario("CREATE_VAULT");
-    const failure = await reject(bundle, { ...state, authorization: { authenticated: true } });
+    const failure = await reject(bundle, { ...state, authorization: { authenticated: true, emailConfirmed: true } });
     expect(failure).toMatchObject({ step: "0", code: "WRITE_CAPABILITY_REQUIRED" });
   });
 
@@ -99,7 +99,7 @@ describe("step 0 — authorization, before any state is read", () => {
     const { bundle, state } = scenario("CREATE_VAULT");
     const failure = await reject(bundle, {
       ...state,
-      authorization: { authenticated: true, token: { scopes: ["RECOVERY_CONTROL"] } },
+      authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["RECOVERY_CONTROL"] } },
     });
     expect(failure).toMatchObject({ step: "0", code: "SCOPE_REQUIRED" });
   });
@@ -108,7 +108,7 @@ describe("step 0 — authorization, before any state is read", () => {
     const { bundle, state } = scenario("RECOVERY_RESET");
     const failure = await reject(bundle, {
       ...state,
-      authorization: { authenticated: true, token: { scopes: ["TRUSTED_SECURITY", "ACCOUNT_SECURITY"] } },
+      authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["TRUSTED_SECURITY", "ACCOUNT_SECURITY"] } },
     });
     expect(failure).toMatchObject({ step: "0", code: "SCOPE_REQUIRED" });
   });
@@ -117,12 +117,12 @@ describe("step 0 — authorization, before any state is read", () => {
     const enroll = scenario("ENROLL_CLIENT");
     await accept(enroll.bundle, {
       ...enroll.state,
-      authorization: { authenticated: true, token: { scopes: ["ACCOUNT_SECURITY"] } },
+      authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["ACCOUNT_SECURITY"] } },
     });
     const revoke = scenario("REVOKE_CLIENT");
     const failure = await reject(revoke.bundle, {
       ...revoke.state,
-      authorization: { authenticated: true, token: { scopes: ["ACCOUNT_SECURITY"] } },
+      authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["ACCOUNT_SECURITY"] } },
     });
     expect(failure.code).toBe("SCOPE_REQUIRED");
   });
@@ -131,19 +131,36 @@ describe("step 0 — authorization, before any state is read", () => {
     const { bundle, state } = scenario("CREATE_VAULT");
     const failure = await reject(bundle, {
       ...state,
-      authorization: { authenticated: true, token: { scopes: ["TRUSTED_SECURITY"], revokedReason: "RECIPIENT_REVOKED" } },
+      authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["TRUSTED_SECURITY"], revokedReason: "RECIPIENT_REVOKED" } },
     });
     expect(failure).toMatchObject({ step: "0", code: "RECIPIENT_REVOKED", stored: false, consumesNonce: false });
   });
 
   it("CREATE_ACCOUNT needs login alone (§11.3's single exception)", async () => {
     const { bundle, state } = scenario("CREATE_ACCOUNT");
-    await accept(bundle, { ...state, authorization: { authenticated: true } });
+    await accept(bundle, { ...state, authorization: { authenticated: true, emailConfirmed: true } });
+  });
+
+  // §35.2 / §3.7 (ADR-023): §44.3 "CREATE_ACCOUNT de un usuario sin email confirmado → EMAIL_UNCONFIRMED sin consumir nada".
+  it.each([
+    ["unconfirmed", false],
+    ["unknown", undefined],
+  ] as const)("CREATE_ACCOUNT with the login's email %s → EMAIL_UNCONFIRMED: retryable, not stored, nothing consumed", async (_, emailConfirmed) => {
+    const { bundle, state } = scenario("CREATE_ACCOUNT");
+    const failure = await reject(bundle, { ...state, authorization: { authenticated: true, ...(emailConfirmed === undefined ? {} : { emailConfirmed }) } });
+    expect(failure).toMatchObject({ step: "0c", code: "EMAIL_UNCONFIRMED", retryable: true, stored: false, consumesNonce: false });
+    // Once confirmed, the very same bundle is accepted.
+    await accept(bundle, { ...state, authorization: { authenticated: true, emailConfirmed: true } });
+  });
+
+  it("an unconfirmed email blocks only CREATE_ACCOUNT: an account with a root keeps working", async () => {
+    const { bundle, state } = scenario("CREATE_VAULT");
+    await accept(bundle, { ...state, authorization: { ...state.authorization, emailConfirmed: false } });
   });
 
   it("step 0 never consumes a nonce, even for a deletion", async () => {
     const { bundle, state } = scenario("DELETE_VAULT");
-    const failure = await reject(bundle, { ...state, authorization: { authenticated: true } });
+    const failure = await reject(bundle, { ...state, authorization: { authenticated: true, emailConfirmed: true } });
     expect(failure).toMatchObject({ step: "0", consumesNonce: false, stored: false });
   });
 });
@@ -175,7 +192,7 @@ describe("step 0b — the bundle_id lookup", () => {
     const { bundle, state } = scenario("CREATE_VAULT");
     const failure = await reject(bundle, {
       ...state,
-      authorization: { authenticated: true, token: { scopes: ["RECOVERY_CONTROL"] } },
+      authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["RECOVERY_CONTROL"] } },
       storedResult: { operationType: "CREATE_VAULT", result: { applied: true } },
     });
     expect(failure).toMatchObject({ step: "0", code: "SCOPE_REQUIRED" });
@@ -185,7 +202,7 @@ describe("step 0b — the bundle_id lookup", () => {
 describe("step 0c — account and vault state", () => {
   it("rejects CREATE_ACCOUNT on an account that already has a root", async () => {
     const { bundle } = scenario("CREATE_ACCOUNT");
-    const failure = await reject(bundle, { ...world.state, authorization: { authenticated: true } });
+    const failure = await reject(bundle, { ...world.state, authorization: { authenticated: true, emailConfirmed: true } });
     expect(failure).toMatchObject({ step: "0c", code: "INVALID_STATE", rule: "account/has-root" });
   });
 
@@ -543,7 +560,7 @@ describe("step 7 — applicability: the table's — and its required fields", ()
         coverage_envelopes: reset.bundle.coverage_envelopes,
       }),
       // §35.15: with the matured reset request the relabelled bundle would need, so 0c lets it through.
-      { ...kit.state, recoveryRequests: reset.state.recoveryRequests ?? [], authorization: { authenticated: true, token: { scopes: ["RECOVERY_CONTROL"] } } },
+      { ...kit.state, recoveryRequests: reset.state.recoveryRequests ?? [], authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["RECOVERY_CONTROL"] } } },
     );
     expect(failure).toMatchObject({ step: "7", code: "INVALID_BUNDLE", rule: "applicability/transition-type" });
   });

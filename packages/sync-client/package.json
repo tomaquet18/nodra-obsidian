@@ -10,7 +10,8 @@
     "./test-support/fs-conformance": "./test/support/fs-conformance.ts",
     "./test-support/tabs": "./test/support/tabs.ts",
     "./test-support/shell": "./test/support/shell.ts",
-    "./test-support/bytes": "./test/support/bytes.ts"
+    "./test-support/bytes": "./test/support/bytes.ts",
+    "./test-support/gotrue": "./test/support/gotrue.ts"
   },
   "scripts": {
     "test": "vitest run",

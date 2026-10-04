@@ -332,6 +332,8 @@ export const BundleFailureCode = z.enum([
   "RECOVERY_NOT_MATURE",
   "RECOVERY_REQUEST_REQUIRED",
   "RECOVERY_REQUEST_EXISTS",
+  // §35.2 / §3.7 (ADR-023): CREATE_ACCOUNT before the login's email is confirmed; retryable, never stored.
+  "EMAIL_UNCONFIRMED",
 ]);
 export type BundleFailureCode = z.infer<typeof BundleFailureCode>;
 
@@ -700,6 +702,9 @@ export const SecurityEventType = z.enum([
   "SWITCH_TO_MANAGED_REQUESTED",
   "RECOVERY_REQUEST_VETOED",
   "RECOVERY_REQUEST_CANCELLED",
+  // §3.7 (ADR-023): a sign-in method linked to or unlinked from the account (the hourly comparison).
+  "LOGIN_METHOD_LINKED",
+  "LOGIN_METHOD_UNLINKED",
 ]);
 export type SecurityEventType = z.infer<typeof SecurityEventType>;
 

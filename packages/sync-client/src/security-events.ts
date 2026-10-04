@@ -86,6 +86,8 @@ const ALARMING: ReadonlySet<SecurityEventType> = new Set<SecurityEventType>([
   "RECOVERY_RESET_REQUESTED",
   "KIT_REPLACEMENT_REQUESTED",
   "SWITCH_TO_MANAGED_REQUESTED",
+  // §3.7: in a Managed account a linked provider controls the content (§3.2).
+  "LOGIN_METHOD_LINKED",
 ]);
 
 const MESSAGES: Readonly<Record<SecurityEventType, string>> = {
@@ -113,6 +115,9 @@ const MESSAGES: Readonly<Record<SecurityEventType, string>> = {
     "A switch of your Nodra account to Managed was requested. It can run in 72 hours. If it was not you, veto it now with your current Recovery Kit: your Encryption Password and Account Secret Key are compromised.",
   RECOVERY_REQUEST_VETOED: "A pending recovery request of your Nodra account was vetoed.",
   RECOVERY_REQUEST_CANCELLED: "A pending recovery request of your Nodra account was cancelled by whoever filed it.",
+  LOGIN_METHOD_LINKED:
+    "A new sign-in method (such as GitHub) was linked to your Nodra account: whoever controls it can now sign in. If it was not you, someone controls an account with your email address: secure your email, then change your Nodra password.",
+  LOGIN_METHOD_UNLINKED: "A sign-in method was removed from your Nodra account. If it was not you, change your password.",
 };
 
 /** The facts under §20.2's compare-and-set: `change` is pure and re-applied to whatever was there. */

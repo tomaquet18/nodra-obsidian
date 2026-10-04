@@ -25,7 +25,11 @@ const attention = (s: PanelState) => {
 
 describe("signed out", () => {
   it("shows the sign-in form, not busy, no problem", () => {
-    expect(panelState(facts({ kind: "signed-out" }, { email: null }))).toEqual({ kind: "signed-out", busy: false, problem: null });
+    expect(panelState(facts({ kind: "signed-out" }, { email: null }))).toEqual({ kind: "signed-out", busy: false, waiting: false, problem: null });
+  });
+  it("§3.7 while GitHub is open in the browser: waiting (not the password form's busy); a failure shows with the form back", () => {
+    expect(panelState(facts({ kind: "signed-out" }, { email: null, busy: "github" }))).toEqual({ kind: "signed-out", busy: false, waiting: true, problem: null });
+    expect(panelState(facts({ kind: "signed-out" }, { email: null, problem: "GitHub sign-in was cancelled." }))).toMatchObject({ waiting: false, problem: "GitHub sign-in was cancelled." });
   });
   it("while signing in: busy, and the last refusal is shown", () => {
     expect(panelState(facts({ kind: "signed-out" }, { email: null, busy: "sign-in" }))).toMatchObject({ kind: "signed-out", busy: true });

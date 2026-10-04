@@ -106,8 +106,8 @@ export interface SecurityOperationOptions extends AccountContext {
 
 // §29: the label a device enrolls with, built where it runs (the web from `navigator`, the plugin from
 // Obsidian's `Platform`), re-exported so neither needs the protocol package for it.
-export { DEVICE_LABEL_MAX, browserDeviceLabel, fitDeviceLabel, pluginDeviceLabel } from "@nodra/protocol";
-export type { NavigatorLike, OsFamily } from "@nodra/protocol";
+export { BROWSER_FAMILIES, DEVICE_LABEL_MAX, OS_FAMILIES, browserDeviceLabel, fitDeviceLabel, pluginDeviceLabel } from "@nodra/protocol";
+export type { BrowserFamily, NavigatorLike, OsFamily } from "@nodra/protocol";
 
 /**
  * §19: what the server says about a device's last use of its access. Unsigned and informative: shown

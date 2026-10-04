@@ -1,3 +1,5 @@
+import { supabaseAuth } from "@nodra/sync-client";
+import { fakeGoTrue } from "@nodra/sync-client/test-support/gotrue";
 import { describe, expect, it } from "vitest";
 import { type LocalStore, type SecretStore, authStorageKey, pluginAuthStorage } from "../src/auth-storage.js";
 
@@ -58,6 +60,40 @@ describe("pluginAuthStorage", () => {
     await s.removeItem(authStorageKey(A));
     expect(await s.getItem(authStorageKey(A))).toBeNull();
     expect(secrets.items.get(authStorageKey(A))).toBe("");
+  });
+
+  // §44.3: "plugin: el code_verifier nunca se escribe en secret storage ni en data.json (falla si el
+  // almacenamiento persiste claves -code-verifier)". auth-js writes three keys per flow, all ending so.
+  it.each([
+    ["secret storage", true],
+    ["local storage", false],
+  ])("§3.7 a GitHub sign-in's PKCE verifier stays in memory: never in %s; the session is stored as before", async (_, withSecrets) => {
+    const secrets = fakeSecrets();
+    const local = fakeLocal();
+    const writes: string[] = [];
+    const watchedSecrets: SecretStore = { getSecret: (id) => secrets.getSecret(id), setSecret: (id, v) => (writes.push(id), secrets.setSecret(id, v)) };
+    const watchedLocal: LocalStore = { load: (k) => local.load(k), save: (k, v) => (writes.push(k), local.save(k, v)) };
+    const storage = pluginAuthStorage({ secrets: withSecrets ? watchedSecrets : undefined, local: watchedLocal });
+    const gotrue = fakeGoTrue("http://supabase.test");
+    const auth = supabaseAuth({ supabaseUrl: "http://supabase.test", anonKey: "anon", storage, fetch: gotrue.fetch, storageKey: authStorageKey(A) });
+    const { url } = await auth.startOAuth({ provider: "github", redirectTo: "obsidian://nodra-auth?vault=v&flow=f" });
+    // The verifier exists (in memory): the code redeems.
+    const code = new URL(await gotrue.authorize(url, { providerUserId: "1", email: "ana@example.test", verified: true })).searchParams.get("code")!;
+    await auth.exchangeCode(code);
+    expect(writes.filter((k) => k.endsWith("-code-verifier"))).toEqual([]);
+    expect([...secrets.items.keys(), ...local.items.keys()]).toEqual([authStorageKey(A)]);
+    expect(await auth.email()).toBe("ana@example.test");
+    await auth.dispose();
+  });
+
+  it("the check can fail: the same flow over the persistent storage alone writes the verifier there", async () => {
+    const secrets = fakeSecrets();
+    const gotrue = fakeGoTrue("http://supabase.test");
+    const direct = { getItem: (k: string) => secrets.getSecret(k) || null, setItem: (k: string, v: string) => secrets.setSecret(k, v), removeItem: (k: string) => secrets.setSecret(k, "") };
+    const auth = supabaseAuth({ supabaseUrl: "http://supabase.test", anonKey: "anon", storage: direct, fetch: gotrue.fetch, storageKey: authStorageKey(A) });
+    await auth.startOAuth({ provider: "github", redirectTo: "obsidian://nodra-auth?vault=v&flow=f" });
+    expect([...secrets.items.keys()].some((k) => k.endsWith("-code-verifier"))).toBe(true);
+    await auth.dispose();
   });
 
   it("without secret storage: the vault's local storage, and removeItem clears it", async () => {

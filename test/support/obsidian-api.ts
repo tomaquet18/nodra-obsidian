@@ -284,6 +284,8 @@ export class Workspace {
 }
 
 export class App {
+  /** The vault's id (Obsidian's `app.appId`): the `vault` of an `obsidian://` URI. */
+  appId = "a1b2c3d4e5f60718";
   readonly workspace: Workspace = new Workspace(this);
   readonly local = new Map<string, unknown>();
   readonly vault = {
@@ -329,6 +331,11 @@ export class Plugin {
     return el;
   }
   addSettingTab(_tab: PluginSettingTab): void {}
+  /** `obsidian://<action>?…` handlers, by action (Obsidian passes the query as a record, plus `action`). */
+  readonly protocolHandlers = new Map<string, (params: Record<string, string>) => unknown>();
+  registerObsidianProtocolHandler(action: string, handler: (params: Record<string, string>) => unknown): void {
+    this.protocolHandlers.set(action, handler);
+  }
   registerEvent(_ref: unknown): void {}
   registerInterval(id: number): number {
     return id;

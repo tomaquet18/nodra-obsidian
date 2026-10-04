@@ -10,6 +10,10 @@ export const VIEW_TYPE_NODRA = "nodra-panel";
 
 export interface PanelActions {
   signIn(email: string, password: string): Promise<void>;
+  /** §3.7: GitHub in the system browser; the panel waits for the callback. */
+  signInWithGitHub(): void;
+  /** Ends the GitHub sign-in the panel waits for. */
+  cancelGitHub(): void;
   /** §35.4 for this installation; the secrets only on a Private account. */
   connect(secrets: AccountSecrets | undefined): Promise<void>;
   chooseVault(vaultId: string): Promise<void>;
@@ -99,7 +103,7 @@ export class NodraPanelView extends ItemView {
         el.createEl("p", { text: s.text, cls: "nodra-panel-muted" });
         return;
       case "signed-out":
-        return this.signInForm(el, s.busy, s.problem);
+        return s.waiting ? this.waitingForGitHub(el, s.problem) : this.signInForm(el, s.busy, s.problem);
       case "connect":
         this.connectForm(el, s);
         return this.account(el, s.email, s.protection, false);
@@ -209,11 +213,28 @@ export class NodraPanelView extends ItemView {
         .setDisabled(busy)
         .onClick(submit),
     );
+    // §3.7: the system browser, back through obsidian://nodra-auth (login.ts `pluginGitHub`).
+    el.createEl("p", { text: "or", cls: ["nodra-panel-muted", "nodra-panel-or"] });
+    new Setting(el).addButton((b) =>
+      b
+        .setButtonText("Continue with GitHub")
+        .setDisabled(busy)
+        .onClick(() => this.source.actions.signInWithGitHub()),
+    );
     // The login password is reset in Nodra Web (the email's link returns there); the plugin sends nothing.
     el.createEl("p", { cls: "nodra-panel-muted" }).createEl("a", { text: "Forgot your password?", href: WEB_URL });
     const create = el.createEl("p", { text: "No account? ", cls: "nodra-panel-muted" });
     create.createEl("a", { text: "Create one", href: WEB_URL });
     create.appendText(" in Nodra Web: this plugin does not create accounts.");
+  }
+
+  /** §3.7: GitHub is open in the browser; the callback comes back by itself, or Cancel ends the flow. */
+  private waitingForGitHub(el: HTMLElement, problem: string | null): void {
+    el.createEl("h4", { text: "Waiting for GitHub…" });
+    el.createEl("p", { text: "Finish signing in in your browser. This panel updates by itself when GitHub sends you back to Obsidian." });
+    el.createEl("p", { text: "Nothing comes back after 10 minutes, or the browser did not open Obsidian? Cancel and try again, or sign in with your email.", cls: "nodra-panel-muted" });
+    if (problem !== null) el.createEl("p", { text: problem, cls: ["nodra-panel-problem", "mod-warning"] });
+    new Setting(el).addButton((b) => b.setButtonText("Cancel").onClick(() => this.source.actions.cancelGitHub()));
   }
 
   private connectForm(el: HTMLElement, s: Extract<PanelState, { kind: "connect" }>): void {

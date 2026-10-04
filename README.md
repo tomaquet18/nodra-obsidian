@@ -13,6 +13,13 @@ your account key so it can help you recover access (see below).
   signs in to an existing account; it does not create accounts.
 - **Obsidian desktop** 1.11.4 or later (Windows, macOS, Linux). Mobile is not supported yet.
 
+## Plans and payments
+
+Nodra is a service with a free plan: 1 vault, 500 MB, 2 plugin installations and 7 days of version history.
+Paid plans (Pro, Max) add storage, vaults, unlimited plugin installations and longer history; see
+[nodranotes.com/#pricing](https://nodranotes.com/#pricing). Payments are handled on nodranotes.com by Paddle,
+Nodra's reseller; the plugin never asks for payment details.
+
 ## Getting started
 
 Everything is done from the **Nodra panel** in the right sidebar; no command is needed.
@@ -21,7 +28,16 @@ Everything is done from the **Nodra panel** in the right sidebar; no command is 
 2. Install and enable the plugin (Settings → Community plugins). The Nodra panel opens by itself the
    first time. Later, open it with the **Nodra** button in the left ribbon or by clicking the Nodra
    item in the status bar.
-3. **Sign in** in the panel with your Nodra email and password (not your Encryption Password).
+3. **Sign in** in the panel, either way:
+   - with your Nodra email and password (not your Encryption Password), or
+   - with **Continue with GitHub**, if you sign in to Nodra with GitHub. The plugin opens your web browser
+     at GitHub; once you approve, the browser sends you back to Obsidian (it may ask to open Obsidian) and
+     the panel signs in by itself. While it waits, the panel offers **Cancel**; after 10 minutes it stops
+     waiting. With several vaults open, only the vault you started from accepts the answer: any other
+     says "This sign-in link is not for this vault or has expired", and nothing changes. On Linux the
+     browser can only send you back if Obsidian is registered for `obsidian://` links (Obsidian's own
+     setup does this; some installs, such as an AppImage without a desktop entry, do not); otherwise
+     sign in with your email and password.
 4. Click **Connect this vault**. On a Managed account your sign-in is enough; on a Private account the
    panel asks for your Encryption Password and the Account Secret Key from your Setup Kit, used for this
    one step and never stored. If your account has several Nodra vaults, the panel asks which one this
@@ -92,7 +108,10 @@ The plugin connects only to:
 
 - `api.nodranotes.com`: the Nodra API, which stores and serves your encrypted vault.
 - `zlsckqzllncgreukxhqt.supabase.co`: Nodra's sign-in service (Supabase Auth), for your email and
-  password and to renew your session.
+  password, to finish a GitHub sign-in and to renew your session.
+
+A GitHub sign-in happens in your web browser, between it, GitHub and Nodra's sign-in service; the plugin
+itself never talks to GitHub.
 
 It sends no telemetry and no analytics.
 
@@ -102,6 +121,8 @@ It sends no telemetry and no analytics.
   each vault. It is never written to the plugin's `data.json`, which lives inside the vault.
 - `data.json` holds only which Nodra vault this Obsidian vault syncs to.
 - Your Encryption Password and Account Secret Key are never stored.
+- A GitHub sign-in's one-time secret (its PKCE verifier) lives only in memory while the plugin waits for
+  GitHub; it is never written to secret storage or `data.json`.
 
 ## Source and license
 

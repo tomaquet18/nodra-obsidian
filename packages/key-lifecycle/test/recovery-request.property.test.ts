@@ -171,7 +171,7 @@ async function step(model: Model, action: Action, validate: Validator, step8: St
     const id = live === undefined ? action.id : IDS.findIndex((x) => idKey(x) === idKey(live.requestId));
     const bundle = records.get(`${action.op}/${kind}/${id}/${action.correct}`)!;
     const scopes = RECOVERY_RECORD_SIGNERS[action.op][kind].scopes;
-    const outcome = await validate(bundle, stateFor(model, { ...world.state, authorization: { authenticated: true, token: { scopes } } }));
+    const outcome = await validate(bundle, stateFor(model, { ...world.state, authorization: { authenticated: true, emailConfirmed: true, token: { scopes } } }));
     if (!outcome.ok || outcome.value.kind !== "ACCEPT") return null;
     const change = outcome.value.accepted.recoveryChange;
     if (change?.kind === "REQUEST") {

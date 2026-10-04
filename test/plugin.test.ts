@@ -61,10 +61,20 @@ async function until(cond: () => boolean, what: string, ms = 5_000): Promise<voi
 const EMAIL = "ana@example.test";
 const login = { session: { baseUrl: "https://api.test", fetch: vi.fn() }, email: EMAIL, accessToken: async () => "token" };
 
-/** A fake login store: signed in once `signIn` gets the right password. */
+/** A fake login store: signed in once `signIn` gets the right password, or a GitHub flow's session is adopted. */
 function auth(signedIn = false) {
   let current = signedIn;
   return {
+    // §3.7: a flow client that builds the /authorize URL and redeems any code; adopting its session signs in.
+    flowClient: vi.fn(() => ({
+      startOAuth: async (o: { redirectTo: string }) => ({ url: `https://auth.test/auth/v1/authorize?provider=github&redirect_to=${encodeURIComponent(o.redirectTo)}`, flowId: null }),
+      exchangeCode: async () => undefined,
+      dispose: async () => undefined,
+    })),
+    adoptSession: vi.fn(async () => ((current = true), true)),
+    userId: vi.fn(async () => (current ? "01890000-0000-7000-8000-000000000001" : null)),
+    loginMethods: vi.fn(async () => ["github"]),
+    accessToken: vi.fn(async () => "token"),
     current: vi.fn(async () => (current ? login : null)),
     signIn: vi.fn(async (_email: string, password: string) => {
       if (password !== "right") throw new SessionError("INVALID_CREDENTIALS", "refused");
@@ -261,6 +271,61 @@ describe("everything from the panel: sign in → connect → sync", () => {
     button("Sign in again").click();
     await until(() => hasButton("Sign in"), "the sign-in form");
     expect(a.signOut).toHaveBeenCalled();
+  });
+});
+
+describe("§3.7 Continue with GitHub from the panel", () => {
+  /** The URL the plugin sent to the system browser, and the obsidian:// callback params GitHub's redirect would carry. */
+  const opened = () => {
+    const url = (window.open as unknown as { mock: { calls: unknown[][] } }).mock.calls.at(-1)![0] as string;
+    const redirect = new URL(new URL(url).searchParams.get("redirect_to")!);
+    return { url, redirect, params: { action: "nodra-auth", ...Object.fromEntries(redirect.searchParams), code: "code-1" } as Record<string, string> };
+  };
+  const handler = (plugin: unknown) => (plugin as { protocolHandlers: Map<string, (p: Record<string, string>) => unknown> }).protocolHandlers.get("nodra-auth")!;
+
+  it("opens the system browser at GitHub for this vault, waits with Cancel, and the callback signs in and connects", async () => {
+    vi.spyOn(window, "open").mockImplementation(() => null);
+    const a = auth();
+    const { plugin } = await load(a);
+    await until(() => hasButton("Continue with GitHub"), "the GitHub button");
+    expect(handler(plugin)).toBeDefined();
+    button("Continue with GitHub").click();
+    await until(() => (window.open as unknown as { mock: { calls: unknown[] } }).mock.calls.length === 1, "the browser opened");
+    const { redirect, params } = opened();
+    expect(`${redirect.protocol}//${redirect.host}`).toBe("obsidian://nodra-auth");
+    expect(redirect.searchParams.get("vault")).toBe(app.appId);
+    await until(() => hasButton("Cancel") && panelEl().textContent!.includes("Waiting for GitHub"), "the waiting screen");
+
+    m.trustedPlugin.mockResolvedValue({ replica: null, vault: { kind: "SYNC", vaultId: "v1", remember: true } });
+    await handler(plugin)(params);
+    await until(() => hasButton("Connect this vault"), "the connect screen");
+    expect(a.adoptSession).toHaveBeenCalledTimes(1);
+    // A sign-in adopts any user; only a re-authentication names one.
+    expect((a.adoptSession.mock.calls[0] as unknown[])[1]).toBeNull();
+  });
+
+  it("a callback this instance did not start, or with another flow, changes nothing and says so", async () => {
+    vi.spyOn(window, "open").mockImplementation(() => null);
+    const a = auth();
+    const { plugin } = await load(a);
+    await until(() => hasButton("Continue with GitHub"), "the GitHub button");
+    const before = Notice.shown.length;
+    await handler(plugin)({ action: "nodra-auth", vault: app.appId, flow: "nothing-pending", code: "c" });
+    await until(() => Notice.shown.length > before, "the notice");
+    expect(Notice.shown.slice(before)).toEqual(["Nodra: this sign-in link is not for this vault or has expired."]);
+    button("Continue with GitHub").click();
+    await until(() => hasButton("Cancel") && (window.open as unknown as { mock: { calls: unknown[] } }).mock.calls.length === 1, "the waiting screen");
+    await handler(plugin)({ ...opened().params, flow: "another-flow" });
+    await until(() => Notice.shown.length > before + 1, "the second notice");
+    expect(Notice.shown.at(-1)).toBe("Nodra: this sign-in link is not for this vault or has expired.");
+    expect(a.adoptSession).not.toHaveBeenCalled();
+    // Cancel: back to the form, and the old flow's callback is ignored too.
+    const stale = opened().params;
+    button("Cancel").click();
+    await until(() => hasButton("Continue with GitHub"), "the form again");
+    await handler(plugin)(stale);
+    await until(() => Notice.shown.length > before + 2, "the third notice");
+    expect(a.adoptSession).not.toHaveBeenCalled();
   });
 });
 

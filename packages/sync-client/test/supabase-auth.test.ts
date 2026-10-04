@@ -1,10 +1,10 @@
 import { decodeJwt } from "jose";
 import { describe, expect, it } from "vitest";
 import { SessionError, loginSession } from "../src/session.js";
-import { memoryAuthStorage, supabaseAuth } from "../src/supabase-auth.js";
+import { memoryAuthStorage, supabaseAuth, verifierRouter } from "../src/supabase-auth.js";
 import { fakeGoTrue } from "./support/gotrue.js";
 
-// §11.3, §35.2, §35.7 on the client: Supabase Auth through `@supabase/auth-js`, against a fake GoTrue
+// §11.3, §35.2, §35.7, §3.7 on the client: Supabase Auth through `@supabase/auth-js`, against a fake GoTrue
 // (test/support/gotrue.ts). The end-to-end proof against the Worker is the integration suite's
 // `auth.http.test.ts`, through the dev server.
 
@@ -165,57 +165,51 @@ describe("supabaseAuth", () => {
     await b.dispose();
   });
 
-  describe("forgot password (implicit flow: the email link's redirect carries the session in its fragment)", () => {
-    const RESET = "https://app.nodranotes.com/reset-password";
-    /** Opens the email's link as a browser would (GoTrue's /verify redirects) and returns the fragment it lands with. */
-    const follow = async (gotrue: ReturnType<typeof fakeGoTrue>, link: string) => {
-      const res = await gotrue.fetch(link, { redirect: "manual" });
-      const location = new URL(res.headers.get("location")!);
-      expect(location.origin + location.pathname).toBe(RESET);
-      return location.hash;
-    };
+  describe("§3.7 email links: token_hash + verifyOtp, on a button press (no session in any URL)", () => {
     const failure = (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e as Error);
     const secretFree = (e: Error | null, secrets: readonly string[]) => {
       expect(e).toBeInstanceOf(SessionError);
       const text = `${e!.message} ${e!.stack ?? ""}`;
       for (const s of secrets) expect(text).not.toContain(s);
     };
+    const tokenHashOf = (link: string) => new URL(link).searchParams.get("token_hash")!;
 
-    it("requestPasswordReset sends the link to the given redirect; an unknown email resolves just the same (no enumeration)", async () => {
+    it("requestPasswordReset sends a token_hash link to /reset-password; an unknown email resolves just the same (no enumeration); nobody is signed in", async () => {
       const { auth, gotrue } = client();
       await auth.signUp(EMAIL, PASSWORD);
       await auth.signOut();
-      await auth.requestPasswordReset(EMAIL, RESET);
-      await auth.requestPasswordReset("nobody@example.test", RESET);
-      expect(gotrue.requests.filter((r) => r.startsWith("POST /auth/v1/recover"))).toEqual([
-        `POST /auth/v1/recover?redirect_to=${encodeURIComponent(RESET)}`,
-        `POST /auth/v1/recover?redirect_to=${encodeURIComponent(RESET)}`,
-      ]);
-      expect(gotrue.emails.map((e) => e.email)).toEqual([EMAIL]);
-      // It signs nobody in.
+      await auth.requestPasswordReset(EMAIL, "https://app.nodranotes.com/reset-password");
+      await auth.requestPasswordReset("nobody@example.test", "https://app.nodranotes.com/reset-password");
+      expect(gotrue.requests.filter((r) => r.startsWith("POST /auth/v1/recover"))).toHaveLength(2);
+      expect(gotrue.emails.map((e) => [e.email, e.kind])).toEqual([[EMAIL, "recovery"]]);
+      const link = new URL(gotrue.emails[0]!.link);
+      expect(link.pathname).toBe("/reset-password");
+      expect(link.searchParams.get("type")).toBe("recovery");
+      // The link carries no session, only a one-time hash: nothing in it signs anybody in.
+      expect(link.hash).toBe("");
+      expect(link.search).not.toMatch(/access_token|refresh_token/);
       await expect(auth.accessToken()).rejects.toMatchObject({ code: "NOT_SIGNED_IN" });
+      expect(gotrue.requests.some((r) => r.startsWith("POST /auth/v1/verify"))).toBe(false);
     });
 
-    it("the link signs this client in; updatePassword changes the password: the old one is refused, the new one works, other sessions end", async () => {
+    it("verifyEmailLink(recovery) signs this client in; updatePassword: the old password is refused, the new one works, other sessions end", async () => {
       const { auth, gotrue } = client();
       await auth.signUp(EMAIL, PASSWORD);
       const otherDevice = client({ gotrue }).auth;
       await otherDevice.signInWithPassword(EMAIL, PASSWORD);
       await auth.signOut();
 
-      await auth.requestPasswordReset(EMAIL, RESET);
-      const fragment = await follow(gotrue, gotrue.emails[0]!.link);
+      await auth.requestPasswordReset(EMAIL, "https://app.nodranotes.com/reset-password");
       const changes: boolean[] = [];
       auth.onSessionChange((signedIn) => changes.push(signedIn));
-      await auth.signInWithRecoveryLink(fragment);
+      await auth.verifyEmailLink("recovery", tokenHashOf(gotrue.emails[0]!.link));
+      expect(gotrue.requests.at(-1)).toBe("POST /auth/v1/verify");
       expect(await auth.email()).toBe(EMAIL);
       expect(changes.at(-1)).toBe(true);
       const recovered = await auth.accessToken();
 
       await auth.updatePassword("a brand new password");
-      // Still signed in, in the same session.
       expect(claims(await auth.accessToken()).session_id).toBe(claims(recovered).session_id);
-      // The other device's session ended with the change (GoTrue's rule; the Worker follows within §11.3's window).
       expect(await otherDevice.refresh()).toBe(false);
 
       const fresh = client({ gotrue }).auth;
@@ -225,32 +219,36 @@ describe("supabaseAuth", () => {
 
     it.each([
       ["a used link", "used"],
-      ["an expired link (GoTrue's error redirect)", "error"],
-      ["a fragment that is not a recovery", "signup"],
-      ["no fragment", "empty"],
-      ["a garbled token", "garbled"],
-    ])("%s is RECOVERY_LINK_INVALID, signs nothing in, and the error repeats no token", async (_, kind) => {
+      ["a link of the other kind", "kind"],
+      ["a garbled hash", "garbled"],
+    ])("%s is EMAIL_LINK_INVALID, signs nothing in, and the error repeats no hash", async (_, kind) => {
       const { auth, gotrue } = client();
       await auth.signUp(EMAIL, PASSWORD);
       await auth.signOut();
-      await auth.requestPasswordReset(EMAIL, RESET);
-      const link = gotrue.emails[0]!.link;
-      const good = await follow(gotrue, link);
-      const params = new URLSearchParams(good.slice(1));
-      const fragment =
-        kind === "used"
-          ? await follow(gotrue, link)
-          : kind === "error"
-            ? "#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired"
-            : kind === "signup"
-              ? good.replace("type=recovery", "type=signup")
-              : kind === "empty"
-                ? ""
-                : `#access_token=not.a-jwt&refresh_token=${params.get("refresh_token")}&type=recovery`;
-      const e = await failure(auth.signInWithRecoveryLink(fragment));
-      expect(e).toMatchObject({ code: "RECOVERY_LINK_INVALID" });
-      secretFree(e, [params.get("access_token")!, params.get("refresh_token")!]);
+      await auth.requestPasswordReset(EMAIL, "https://app.nodranotes.com/reset-password");
+      const hash = tokenHashOf(gotrue.emails[0]!.link);
+      if (kind === "used") {
+        const spender = client({ gotrue }).auth;
+        await spender.verifyEmailLink("recovery", hash);
+      }
+      const e = await failure(kind === "kind" ? auth.verifyEmailLink("email", hash) : auth.verifyEmailLink("recovery", kind === "garbled" ? `${hash}x` : hash));
+      expect(e).toMatchObject({ code: "EMAIL_LINK_INVALID" });
+      secretFree(e, [hash]);
       await expect(auth.accessToken()).rejects.toMatchObject({ code: "NOT_SIGNED_IN" });
+    });
+
+    it("a sign-up confirmation link: /auth/confirm?token_hash&type=email; verifying it confirms the email (password sign-in then works)", async () => {
+      const { auth, gotrue } = client();
+      gotrue.confirmEmail = true;
+      expect(await auth.signUp(EMAIL, PASSWORD)).toEqual({ confirmationRequired: true });
+      await expect(auth.signInWithPassword(EMAIL, PASSWORD)).rejects.toMatchObject({ code: "EMAIL_NOT_CONFIRMED" });
+      const mail = gotrue.emails.find((m) => m.kind === "confirmation")!;
+      const link = new URL(mail.link);
+      expect([link.pathname, link.searchParams.get("type")]).toEqual(["/auth/confirm", "email"]);
+      const confirmer = client({ gotrue }).auth;
+      await confirmer.verifyEmailLink("email", tokenHashOf(mail.link));
+      expect(gotrue.users().find((u) => u.email === EMAIL)?.confirmed).toBe(true);
+      await auth.signInWithPassword(EMAIL, PASSWORD);
     });
 
     it("updatePassword: WEAK_PASSWORD, SAME_PASSWORD, NOT_SIGNED_IN without a session; no error repeats a password or the token", async () => {
@@ -265,17 +263,181 @@ describe("supabaseAuth", () => {
       for (const e of [weak, same]) secretFree(e, ["short", PASSWORD, token]);
     });
 
-    it("a refused request: RATE_LIMITED (429), UNREACHABLE; neither repeats the email's password", async () => {
+    it("a refused request: RATE_LIMITED (429), UNREACHABLE", async () => {
       const { auth, gotrue } = client();
       gotrue.rateLimited = true;
-      await expect(auth.requestPasswordReset(EMAIL, RESET)).rejects.toMatchObject({ code: "RATE_LIMITED" });
+      await expect(auth.requestPasswordReset(EMAIL, "https://app.nodranotes.com/reset-password")).rejects.toMatchObject({ code: "RATE_LIMITED" });
       gotrue.rateLimited = false;
       gotrue.down = true;
-      await expect(auth.requestPasswordReset(EMAIL, RESET)).rejects.toMatchObject({ code: "UNREACHABLE" });
-      await expect(auth.updatePassword("another long password")).rejects.toMatchObject({ code: expect.stringMatching(/UNREACHABLE|NOT_SIGNED_IN/) });
+      await expect(auth.requestPasswordReset(EMAIL, "https://app.nodranotes.com/reset-password")).rejects.toMatchObject({ code: "UNREACHABLE" });
+      await expect(auth.verifyEmailLink("recovery", "hash-1")).rejects.toMatchObject({ code: "UNREACHABLE" });
     });
   });
 
+  describe("§3.7 OAuth sign-in with PKCE", () => {
+    const CALLBACK = "https://app.nodranotes.com/auth/callback";
+    const GITHUB = { providerUserId: "1001", email: EMAIL, verified: true } as const;
+    const codeOf = (landing: string) => new URL(landing).searchParams.get("code")!;
+    const verifierKeys = (s: ReturnType<typeof memoryAuthStorage>) => [...s.items.keys()].filter((k) => k.endsWith("-code-verifier"));
+
+    it("startOAuth: an /authorize URL with an S256 challenge and the redirect, no request yet; the code redeems once for a session and the verifier is gone", async () => {
+      const { auth, gotrue, storage } = client();
+      const { url } = await auth.startOAuth({ provider: "github", redirectTo: CALLBACK });
+      const u = new URL(url);
+      expect(`${u.origin}${u.pathname}`).toBe(`${URL_}/auth/v1/authorize`);
+      expect(u.searchParams.get("provider")).toBe("github");
+      expect(u.searchParams.get("redirect_to")).toBe(CALLBACK);
+      expect(u.searchParams.get("code_challenge_method")).toBe("s256");
+      expect(u.searchParams.get("code_challenge")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(u.searchParams.has("prompt")).toBe(false);
+      expect(gotrue.requests).toEqual([]);
+      expect(verifierKeys(storage).length).toBeGreaterThan(0);
+
+      const landing = await gotrue.authorize(url, GITHUB);
+      expect(landing.startsWith(`${CALLBACK}?code=`)).toBe(true);
+      await auth.exchangeCode(codeOf(landing));
+      expect(gotrue.requests).toContain("POST /auth/v1/token?grant_type=pkce");
+      expect(await auth.email()).toBe(EMAIL);
+      expect(await auth.userId()).toBe(claims(await auth.accessToken()).sub);
+      expect(await auth.loginMethods()).toEqual(["github"]);
+      expect(verifierKeys(storage)).toEqual([]);
+    });
+
+    it("selectAccount asks GitHub for its account picker (`prompt=select_account`)", async () => {
+      const { auth } = client();
+      const { url } = await auth.startOAuth({ provider: "github", redirectTo: CALLBACK, selectAccount: true });
+      expect(new URL(url).searchParams.get("prompt")).toBe("select_account");
+    });
+
+    it.each([
+      ["a code redeemed twice", "twice"],
+      ["a code in a client that holds no verifier (another browser, storage cleared)", "elsewhere"],
+      ["a code issued for another verifier", "foreign"],
+      ["a code older than 5 minutes", "expired"],
+    ])("%s → OAUTH_CALLBACK_INVALID, no session, and the error repeats no code", async (_, kind) => {
+      const { auth, gotrue } = client();
+      const { url } = await auth.startOAuth({ provider: "github", redirectTo: CALLBACK });
+      let code = codeOf(await gotrue.authorize(url, GITHUB));
+      let target = auth;
+      if (kind === "twice") {
+        await auth.exchangeCode(code);
+        await auth.signOut();
+        // A new flow, so a verifier is there: the server itself refuses the spent code.
+        await auth.startOAuth({ provider: "github", redirectTo: CALLBACK });
+      } else if (kind === "elsewhere") {
+        target = client({ gotrue }).auth;
+      } else if (kind === "foreign") {
+        // The attacker's own flow: a code bound to the attacker's challenge, handed to this client.
+        const attacker = client({ gotrue }).auth;
+        const theirs = await attacker.startOAuth({ provider: "github", redirectTo: CALLBACK });
+        code = codeOf(await gotrue.authorize(theirs.url, { providerUserId: "666", email: "mallory@example.test", verified: true }));
+      } else {
+        gotrue.clockSkewSeconds = 301;
+      }
+      const e = await target.exchangeCode(code).then(
+        () => null,
+        (x: unknown) => x as Error,
+      );
+      expect(e).toBeInstanceOf(SessionError);
+      expect(e).toMatchObject({ code: "OAUTH_CALLBACK_INVALID" });
+      expect(`${e!.message} ${e!.stack ?? ""}`).not.toContain(code);
+      await expect(target.accessToken()).rejects.toMatchObject({ code: "NOT_SIGNED_IN" });
+    });
+
+    it("automatic linking only through a verified email: GitHub with the same verified email joins the password account; an unverified one is a new user, unconfirmed and unlinked", async () => {
+      const { auth, gotrue } = client();
+      await auth.signUp(EMAIL, PASSWORD);
+      const owner = await auth.userId();
+      await auth.signOut();
+
+      const stranger = client({ gotrue }).auth;
+      const s = await stranger.startOAuth({ provider: "github", redirectTo: CALLBACK });
+      await stranger.exchangeCode(codeOf(await gotrue.authorize(s.url, { providerUserId: "2", email: EMAIL, verified: false })));
+      expect(await stranger.userId()).not.toBe(owner);
+      expect(gotrue.users().find((u) => u.id === owner)?.providers).toEqual(["email"]);
+      expect(gotrue.users().find((u) => u.id !== owner)?.confirmed).toBe(false);
+
+      const linked = client({ gotrue }).auth;
+      const l = await linked.startOAuth({ provider: "github", redirectTo: CALLBACK });
+      await linked.exchangeCode(codeOf(await gotrue.authorize(l.url, GITHUB)));
+      expect(await linked.userId()).toBe(owner);
+      expect([...(await linked.loginMethods())].sort()).toEqual(["github", "password"]);
+    });
+
+    it("a provider refusal is the host's to read: the redirect carries `error`, and no code", async () => {
+      const { auth, gotrue } = client();
+      const { url } = await auth.startOAuth({ provider: "github", redirectTo: CALLBACK });
+      const landing = new URL(await gotrue.authorize(url, "deny"));
+      expect(landing.searchParams.get("error")).toBe("access_denied");
+      expect(landing.searchParams.has("code")).toBe(false);
+    });
+  });
+
+  describe("§3.7 adoptSession: a sign-in or re-authentication completed in a separate client", () => {
+    const CALLBACK = "obsidian://nodra-auth?vault=v&flow=f";
+    const codeOf = (landing: string) => new URL(landing).searchParams.get("code")!;
+
+    const githubUser = async () => {
+      const { auth, gotrue, storage } = client();
+      const { url } = await auth.startOAuth({ provider: "github", redirectTo: CALLBACK });
+      await auth.exchangeCode(codeOf(await gotrue.authorize(url, { providerUserId: "1", email: EMAIL, verified: true })));
+      return { auth, gotrue, storage };
+    };
+    const reauthAs = async (gotrue: ReturnType<typeof fakeGoTrue>, providerUserId: string, email: string) => {
+      const storage = memoryAuthStorage();
+      const fresh = supabaseAuth({ supabaseUrl: URL_, anonKey: "anon-key", storage, fetch: gotrue.fetch, storageKey: "nodra-reauth" });
+      const { url } = await fresh.startOAuth({ provider: "github", redirectTo: CALLBACK, selectAccount: true });
+      await fresh.exchangeCode(codeOf(await gotrue.authorize(url, { providerUserId, email, verified: true })));
+      return { fresh, storage };
+    };
+
+    it("the same user: this client takes the new session (a fresh primary authentication), and the other client holds nothing", async () => {
+      const { auth, gotrue } = await githubUser();
+      const before = claims(await auth.accessToken());
+      const { fresh, storage } = await reauthAs(gotrue, "1", EMAIL);
+      const after = claims(await fresh.accessToken());
+      expect(await auth.adoptSession(fresh, before.sub)).toBe(true);
+      expect(claims(await auth.accessToken())).toMatchObject({ sub: before.sub, session_id: after.session_id });
+      expect(gotrue.live(after.session_id)).toBe(true);
+      expect(storage.items.size).toBe(0);
+    });
+
+    it("another user (§44.3): false; the new session is signed out on the server, this client's session is kept unchanged", async () => {
+      const { auth, gotrue, storage } = await githubUser();
+      const before = await auth.accessToken();
+      const snapshot = new Map(storage.items);
+      const { fresh, storage: freshStorage } = await reauthAs(gotrue, "2", "someone-else@example.test");
+      const other = claims(await fresh.accessToken());
+      expect(other.sub).not.toBe(claims(before).sub);
+      expect(await auth.adoptSession(fresh, claims(before).sub)).toBe(false);
+      expect(await auth.accessToken()).toBe(before);
+      expect(storage.items).toEqual(snapshot);
+      expect(gotrue.live(other.session_id)).toBe(false);
+      expect(freshStorage.items.size).toBe(0);
+    });
+
+    it("a plain sign-in (no expected user) adopts whoever signed in", async () => {
+      const { gotrue } = await githubUser();
+      const main = client({ gotrue }).auth;
+      const { fresh } = await reauthAs(gotrue, "1", EMAIL);
+      expect(await main.adoptSession(fresh, null)).toBe(true);
+      expect(await main.email()).toBe(EMAIL);
+    });
+  });
+
+  it("verifierRouter: keys ending in -code-verifier go to one storage, the session to the other", async () => {
+    const gotrue = fakeGoTrue(URL_);
+    const verifiers = memoryAuthStorage();
+    const rest = memoryAuthStorage();
+    const auth = supabaseAuth({ supabaseUrl: URL_, anonKey: "anon-key", storage: verifierRouter({ verifiers, rest }), fetch: gotrue.fetch, storageKey: "nodra-auth-x" });
+    const { url } = await auth.startOAuth({ provider: "github", redirectTo: "https://app.nodranotes.com/auth/callback" });
+    expect(verifiers.items.size).toBeGreaterThan(0);
+    expect([...verifiers.items.keys()].every((k) => k.endsWith("-code-verifier"))).toBe(true);
+    expect(rest.items.size).toBe(0);
+    await auth.exchangeCode(new URL(await gotrue.authorize(url, { providerUserId: "1", email: EMAIL, verified: true })).searchParams.get("code")!);
+    expect([...rest.items.keys()]).toEqual(["nodra-auth-x"]);
+    expect([...verifiers.items.keys()]).toEqual([]);
+  });
   it("dispose: its listeners are not told anything more (a plugin that unloads leaves nothing running)", async () => {
     const { auth } = client();
     const changes: boolean[] = [];

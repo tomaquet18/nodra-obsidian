@@ -117,7 +117,7 @@ describe("T3: step 0c — a switch from the wrong mode is INVALID_STATE", () => 
   it("the switches need TRUSTED_SECURITY (step 0)", async () => {
     for (const type of ["SWITCH_TO_PRIVATE", "SWITCH_TO_MANAGED"] as const) {
       const { bundle, state } = scenario(type);
-      const failure = await reject(bundle, { ...state, authorization: { authenticated: true, token: { scopes: ["ACCOUNT_SECURITY"] } } });
+      const failure = await reject(bundle, { ...state, authorization: { authenticated: true, emailConfirmed: true, token: { scopes: ["ACCOUNT_SECURITY"] } } });
       expect(failure).toMatchObject({ step: "0", code: "SCOPE_REQUIRED" });
     }
   });
